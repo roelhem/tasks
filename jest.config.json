@@ -1,0 +1,22 @@
+{
+  "preset": "ts-jest",
+  "globals": {
+    "ts-jest": {}
+  },
+  "transform": {
+    "^.+\\.(t|j)sx?$": "ts-jest"
+  },
+  "transformIgnorePatterns": [
+    "/node_modules/"
+  ],
+  "testMatch": [
+    "**/__tests__/*.(test|spec).(js|jsx|ts|tsx)",
+    "**/tests/unit/**/*.(test|spec).(js|jsx|ts|tsx)",
+    "**/tests/feature/**/*.(test|spec).(js|jsx|ts|tsx)"
+  ],
+  "moduleFileExtensions": ["ts", "tsx", "js", "jsx", "json", "node"],
+  "collectCoverage": false,
+  "collectCoverageFrom": [
+    "./src/**/*.{js,jsx,ts,tsx}"
+  ]
+}

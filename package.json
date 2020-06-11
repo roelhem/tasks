@@ -1,0 +1,43 @@
+{
+  "name": "tasks",
+  "version": "0.1.0",
+  "description": "A way to describe tasks in a promisy-way with progress and cancellation control.",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "scripts": {
+    "test": "jest --config jest.config.json",
+    "build": "tsc",
+    "lint": "tslint -p tsconfig.json",
+    "refresh": "rm -rf ./node_modules ./package-lock.json && npm install",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm test && npm run lint",
+    "preversion": "npm run lint",
+    "version": "git add -A src",
+    "postversion": "git push && git push --tags"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/roelhem/tasks.git"
+  },
+  "keywords": [
+    "promise"
+  ],
+  "files": [
+    "lib/**/*"
+  ],
+  "author": "Roel Hemerik (roelhemerik@gmail.com)",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/roelhem/tasks/issues"
+  },
+  "homepage": "https://github.com/roelhem/tasks#readme",
+  "devDependencies": {
+    "@types/jest": "^25.2.3",
+    "@types/node": "^14.0.11",
+    "jest": "^26.0.1",
+    "ts-jest": "^26.1.0",
+    "tslint": "^6.1.2",
+    "typescript": "^3.9.5"
+  },
+  "dependencies": {}
+}
