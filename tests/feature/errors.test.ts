@@ -75,7 +75,7 @@ describe('Error behavior', () => {
         expect(t.subTasks[0].failureReason).toBe(e)
     })
 
-    test('Throwing an error from a subTask set from outside', async () => {
+    test.skip('Throwing an error from a subTask set from outside', async () => {
         const e = new Error('Error from SubTask')
         const a = new TriggerableTaskTemplate('RootTask')
         const s1 = new TriggerableTaskTemplate('SubTask1')
