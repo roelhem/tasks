@@ -299,7 +299,7 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
                 arg1?: CleanupTaskDefinition<TResult, TArgs, IResult>|string,
                 arg2?: CleanupTaskDefinition<TResult, TArgs, IResult>
             ): CleanupTask<TResult, TArgs, IResult> =>
-                this.handleAddCleanupTask(arg0, arg1, arg2)
+                this.handleAddCleanupTask(arg0, arg1, arg2),
         } as TaskContext<TResult, TArgs, PMessage, IResult>
     }
 
@@ -488,7 +488,9 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
         }
 
         // Change progress and emit event if there are changes.
-        if(progressMessage !== undefined || this.currentProgress !== currentProgress || this.totalProgress !== totalProgress) {
+        if(progressMessage !== undefined
+            || this.currentProgress !== currentProgress
+            || this.totalProgress !== totalProgress) {
             this._currentProgress = currentProgress
             this._totalProgress = totalProgress
             if(progressMessage !== undefined) {
@@ -641,8 +643,8 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
         task: Task<SubTResult, SubTArgs, PMessage, IResult>,
         progressInheritance?: ProgressInheritance
     ): void {
-        let offset: number | undefined = undefined
-        let scale: number | undefined = undefined
+        let offset: number | undefined
+        let scale: number | undefined
         if (isProgressInheritanceOffset(progressInheritance)) {
             offset = progressInheritance[0]
         } else if (isProgressInheritanceRange(progressInheritance)) {
@@ -805,7 +807,10 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     // ---- TASK STRUCTURE INFO ----------------------------------------------------------------------------------- //
     // ------------------------------------------------------------------------------------------------------------ //
 
-    protected getTaskTreeLine(prefix?: number|string, indent: number = 0, indentString: string = '    ', nameWidth: number = 60): string {
+    protected getTaskTreeLine(prefix?: number|string,
+                              indent: number = 0,
+                              indentString: string = '    ',
+                              nameWidth: number = 60): string {
         let prefixString: string = ''
         if(prefix !== undefined) {
             prefixString = `[${prefix}]`
@@ -844,7 +849,9 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
         } else if(isTaskProvider(this.taskDefinition)) {
             return this.taskDefinition.task(context, ...args)
         } else {
-            throw new Error(`Can't run the task ${this.name}. \`taskDefinition\` was not recognised as a valid TaskDefinition.`)
+            throw new Error(
+                `Can't run the task ${this.name}. \`taskDefinition\` was not recognised as a valid TaskDefinition.`
+            )
         }
     }
 
@@ -893,7 +900,9 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     addListener(event: 'failed',         listener: (reason: any) => void): this
     addListener(event: 'interrupted',    listener: (interruptionResult: IResult) => void): this
     addListener(event: 'stateChange',    listener: (state: TaskState, previousState: TaskState) => void): this
-    addListener(event: 'progressUpdate', listener: (progress: number, progressTotal?: number, progressMessage?: PMessage) => void): this
+    addListener(event: 'progressUpdate', listener: (progress: number,
+                                                    progressTotal?: number,
+                                                    progressMessage?: PMessage) => void): this
     addListener(event: string|symbol, listener: ((...args: any[]) => void)|((...args: TArgs) => void)): this {
         return super.addListener(event, listener as ((...args: any[]) => void))
     }
@@ -903,7 +912,9 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     on(event: 'failed',         listener: (reason: any) => void): this
     on(event: 'interrupted',    listener: (interruptionResult: IResult) => void): this
     on(event: 'stateChange',    listener: (state: TaskState, previousState: TaskState) => void): this
-    on(event: 'progressUpdate', listener: (progress: number, progressTotal?: number, progressMessage?: PMessage) => void): this
+    on(event: 'progressUpdate', listener: (progress: number,
+                                           progressTotal?: number,
+                                           progressMessage?: PMessage) => void): this
     on(event: string|symbol,    listener: ((...args: any[]) => void)|((...args: TArgs) => void)): this {
         return super.on(event, listener as ((...args: any[]) => void))
     }
@@ -913,7 +924,9 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     once(event: 'failed',         listener: (reason: any) => void): this
     once(event: 'interrupted',    listener: (interruptionResult: IResult) => void): this
     once(event: 'stateChange',    listener: (state: TaskState, previousState: TaskState) => void): this
-    once(event: 'progressUpdate', listener: (progress: number, progressTotal?: number, progressMessage?: PMessage) => void): this
+    once(event: 'progressUpdate', listener: (progress: number,
+                                             progressTotal?: number,
+                                             progressMessage?: PMessage) => void): this
     once(event: string|symbol,    listener: ((...args: any[]) => void)|((...args: TArgs) => void)): this {
         return super.once(event, listener as ((...args: any[]) => void))
     }
@@ -923,7 +936,9 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     removeListener(event: 'failed',         listener: (reason: any) => void): this
     removeListener(event: 'interrupted',    listener: (interruptionResult: IResult) => void): this
     removeListener(event: 'stateChange',    listener: (state: TaskState, previousState: TaskState) => void): this
-    removeListener(event: 'progressUpdate', listener: (progress: number, progressTotal?: number, progressMessage?: PMessage) => void): this
+    removeListener(event: 'progressUpdate', listener: (progress: number,
+                                                       progressTotal?: number,
+                                                       progressMessage?: PMessage) => void): this
     removeListener(event: string|symbol,    listener: ((...args: any[]) => void)|((...args: TArgs) => void)): this {
         return super.removeListener(event, listener as ((...args: any[]) => void))
     }
@@ -933,7 +948,9 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     off(event: 'failed',         listener: (reason: any) => void): this
     off(event: 'interrupted',    listener: (interruptionResult: IResult) => void): this
     off(event: 'stateChange',    listener: (state: TaskState, previousState: TaskState) => void): this
-    off(event: 'progressUpdate', listener: (progress: number, progressTotal?: number, progressMessage?: PMessage) => void): this
+    off(event: 'progressUpdate', listener: (progress: number,
+                                            progressTotal?: number,
+                                            progressMessage?: PMessage) => void): this
     off(event: string|symbol,    listener: ((...args: any[]) => void)|((...args: TArgs) => void)): this {
         return super.off(event, listener as ((...args: any[]) => void))
     }
@@ -993,7 +1010,9 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     prependListener(event: 'failed',         listener: (reason: any) => void): this
     prependListener(event: 'interrupted',    listener: (interruptionResult: IResult) => void): this
     prependListener(event: 'stateChange',    listener: (state: TaskState, previousState: TaskState) => void): this
-    prependListener(event: 'progressUpdate', listener: (progress: number, progressTotal?: number, progressMessage?: PMessage) => void): this
+    prependListener(event: 'progressUpdate', listener: (progress: number,
+                                                        progressTotal?: number,
+                                                        progressMessage?: PMessage) => void): this
     prependListener(event: string|symbol, listener: ((...args: any[]) => void)|((...args: TArgs) => void)): this {
         return super.prependListener(event, listener as ((...args: any[]) => void))
     }
@@ -1003,7 +1022,9 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     prependOnceListener(event: 'failed',         listener: (reason: any) => void): this
     prependOnceListener(event: 'interrupted',    listener: (interruptionResult: IResult) => void): this
     prependOnceListener(event: 'stateChange',    listener: (state: TaskState, previousState: TaskState) => void): this
-    prependOnceListener(event: 'progressUpdate', listener: (progress: number, progressTotal?: number, progressMessage?: PMessage) => void): this
+    prependOnceListener(event: 'progressUpdate', listener: (progress: number,
+                                                            progressTotal?: number,
+                                                            progressMessage?: PMessage) => void): this
     prependOnceListener(event: string|symbol, listener: ((...args: any[]) => void)|((...args: TArgs) => void)): this {
         return super.prependOnceListener(event, listener as ((...args: any[]) => void))
     }

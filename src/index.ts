@@ -11,10 +11,10 @@ import TaskInterruptionError from './TaskInterruptionError'
 import {isTaskDefinition} from './utils'
 
 const taskConstructorFunction: TaskConstructorFunction =
-    function <TResult = void, TArgs extends any[] = [], PMessage = string, IResult = any>(
+    <TResult = void, TArgs extends any[] = [], PMessage = string, IResult = any>(
         arg0: string|TaskDefinition<TResult, TArgs, PMessage, IResult>,
         arg1?: TaskDefinition<TResult, TArgs, PMessage, IResult>
-    ): Task<TResult, TArgs, PMessage, IResult> {
+    ): Task<TResult, TArgs, PMessage, IResult> => {
         if(isTaskDefinition<TResult, TArgs, PMessage, IResult>(arg0)) { // TYPE 1
             return new Task<TResult, TArgs, PMessage, IResult>(arg0)
         } else if(isTaskDefinition<TResult, TArgs, PMessage, IResult>(arg1)) { // TYPE 2
@@ -25,11 +25,11 @@ const taskConstructorFunction: TaskConstructorFunction =
     }
 
 const taskRunnerFunction: TaskRunnerFunction =
-    function <TResult = void, TArgs extends any[] = [], PMessage = string, IResult = any>(
+    <TResult = void, TArgs extends any[] = [], PMessage = string, IResult = any>(
         arg0: string|TaskDefinition<TResult, TArgs, PMessage, IResult>,
         arg1?: TaskDefinition<TResult, TArgs, PMessage, IResult>|any,
         ...others: any[]
-    ): Task<TResult, TArgs, PMessage, IResult> {
+    ): Task<TResult, TArgs, PMessage, IResult> => {
         if(isTaskDefinition<TResult, TArgs, PMessage, IResult>(arg0)) { // TYPE 1
             return taskConstructorFunction(arg0).run(...[arg1, ...others] as TArgs)
         } else if(isTaskDefinition<TResult, TArgs, PMessage, IResult>(arg1)) { // TYPE 2

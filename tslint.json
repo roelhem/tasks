@@ -18,6 +18,11 @@
     "no-consecutive-blank-lines": false,
     "no-console": false,
     "no-var-requires": false,
+    "no-shadowed-variable": false,
+    "no-bitwise": false,
+    "unified-signatures": false,
+    "ban-types": false,
+    "max-classes-per-file": false,
     "member-access": [true, "no-public"],
     "semicolon": [true, "never"],
     "trailing-comma": [true, {

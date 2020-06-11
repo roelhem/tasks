@@ -205,7 +205,7 @@ export enum TaskState {
     RUNNING = 'RUNNING',
     SUCCEEDED = 'SUCCEEDED',
     FAILED = 'FAILED',
-    INTERRUPTED = 'INTERRUPTED'
+    INTERRUPTED = 'INTERRUPTED',
 }
 
 // -------------------------------------------------------------------------------------------------------------- //

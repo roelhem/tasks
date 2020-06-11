@@ -23,8 +23,9 @@ export function isTaskProvider<TResult = any, TArgs extends any[] = any[], PMess
         && isTaskFunction<TResult, TArgs, PMessage, IResult>(arg.task)
 }
 
-export function isNamedTaskProvider<TResult = any, TArgs extends any[] = any[], PMessage = any, IResult = any>(arg: any):
-    arg is NamedTaskProvider<TResult, TArgs, PMessage, IResult> {
+export function isNamedTaskProvider<TResult = any, TArgs extends any[] = any[], PMessage = any, IResult = any>(
+    arg: any
+): arg is NamedTaskProvider<TResult, TArgs, PMessage, IResult> {
     return isTaskProvider<TResult, TArgs, PMessage, IResult>(arg)
         && 'taskName' in arg
         && typeof arg.taskName === 'string'
