@@ -345,26 +345,6 @@ export default abstract class ChildProcessTaskTemplate<
         this.configStreamHook(hooks.onData, map, (hook, stream) => {
             stream.on('data', chunk => hook(chunk))
         })
-
-        /*const onData = hooks.onData
-        if (typeof onData === 'function') {
-            const map = this.getReadableStreams(childProcess, ['data', 'line'])
-            map.forEach((stream, streamName) => {
-                stream.on('data', chunk => onData(streamName, chunk))
-            })
-        }
-
-        if (typeof onData === 'function' || typeof onData === 'object' && onData !== null) {
-            for (const entry of Object.entries(onData)) {
-                const [streamName, hook] = entry as [ChildProcessReadableStream, (chunk: string|Buffer) => void]
-                const stream = this.getStream(childProcess, streamName)
-                if(stream !== null) {
-                    stream.on('data', chunk => {
-                        hook(chunk)
-                    })
-                }
-            }
-        }*/
     }
 
     protected registerSendAvailableHooks(childProcess: ChildProcess, hook: Hooks) {
@@ -413,11 +393,8 @@ export default abstract class ChildProcessTaskTemplate<
         const options: POptions = this.getTaskOptions(args[0] || {})
         const hooks: Hooks = args[1] || {}
 
-        console.log('CHILD PROCESS TASK OPTIONS', options)
-
         // Starting the child process.
         const processArguments = this.getFullArgs(options.args || [])
-        console.log('ARGUMENTS', processArguments)
         const childProcess = await this.startChildProcess(context, processArguments, options)
 
         // Initialising the readline streams.
