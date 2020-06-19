@@ -65,3 +65,4 @@ export {
     NamedTaskProvider
 } from './types'
 export { TaskInterruptionError }
+export { SpawnProcessTaskTemplate, TriggerableTaskTemplate } from './templates'
