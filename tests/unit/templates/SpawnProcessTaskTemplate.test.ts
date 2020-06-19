@@ -26,7 +26,7 @@ describe('SpawnProcessTaskTemplate', () => {
         const b = new SpawnProcessTaskTemplate('command', {
             prefixArgs: ['arg1', 'arg2']
         })
-        expect(b.defaultName).toBe('command arg1')
+        expect(b.defaultName).toBe('command arg1 arg2')
     })
 
 })
