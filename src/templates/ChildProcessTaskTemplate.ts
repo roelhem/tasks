@@ -27,7 +27,9 @@ type SpecificStreamHook<H extends GF = GF, S extends ChildProcessStream = ChildP
     = Partial<Record<S, H>>
 type StreamHook<H extends GF = GF, S extends ChildProcessStream = ChildProcessStream>
     = GlobalStreamHook<H, S>|SpecificStreamHook<H, S>|(GlobalStreamHook<H, S>&SpecificStreamHook<H, S>)
-type StreamHookCallback<H extends GF = GF, S extends ChildProcessStream = ChildProcessStream, I extends Readable|Writable = Readable|Writable>
+type StreamHookCallback<H extends GF = GF,
+                        S extends ChildProcessStream = ChildProcessStream,
+                        I extends Readable|Writable = Readable|Writable>
     = (hook: H, stream: I, name: S) => void
 
 export interface Hooks {
@@ -85,7 +87,7 @@ export default abstract class ChildProcessTaskTemplate<
             return { mode: options }
         } else {
             return {
-                mode: options.mode || DEFAULT_READABLE_STREAM_MODE
+                mode: options.mode || DEFAULT_READABLE_STREAM_MODE,
             }
         }
     }
@@ -97,7 +99,7 @@ export default abstract class ChildProcessTaskTemplate<
             return { mode: options }
         } else {
             return {
-                mode: options.mode || DEFAULT_WRITABLE_STREAM_MODE
+                mode: options.mode || DEFAULT_WRITABLE_STREAM_MODE,
             }
         }
     }

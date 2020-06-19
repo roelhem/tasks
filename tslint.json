@@ -19,6 +19,7 @@
     "no-console": false,
     "no-var-requires": false,
     "no-shadowed-variable": false,
+    "no-empty-interface": false,
     "no-bitwise": false,
     "unified-signatures": false,
     "ban-types": false,

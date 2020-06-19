@@ -111,7 +111,7 @@ export function mergeDefaultProps<O extends {}>(inputProps: Partial<O>,
         }
     }
     const settings = parseOptions(options)
-    
+
     const result: Partial<O> = {...inputProps}
     for(const property of properties) {
         const p = property as keyof O
@@ -140,7 +140,7 @@ export function fillMissingProperties<V = any>(
     } else if(defaultValue === undefined) {
         throw new Error(`No DefaultValue was found.`)
     }
-    
+
     const newProps: {[key: string]: V} = {}
     for (const property of properties) {
         if(!(property in target)) {
@@ -156,7 +156,7 @@ function objectMap<I extends {}, O extends {[RK in keyof I]: any}>(
     map: <K extends keyof I>(value: I[K], key: K) => O[K]
 ): O {
     const result: Partial<O> = {}
-    for(const key in Object.getOwnPropertyNames(target)) {
+    for(const key of Object.getOwnPropertyNames(target)) {
         result[key as keyof I] = map(target[key as keyof I], key as keyof I)
     }
     return result as O
