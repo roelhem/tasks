@@ -1,9 +1,12 @@
-import {NamedTaskProvider, TaskDefinition, TaskFunction, TaskProvider} from '@/'
 import {
+    NamedTaskProvider,
     ProgressInheritance,
     ProgressInheritanceOffset,
     ProgressInheritanceRange,
-    ProgressInheritanceScale
+    ProgressInheritanceScale,
+    TaskDefinition,
+    TaskFunction,
+    TaskProvider
 } from '../types'
 
 // -------------------------------------------------------------------------------------------------------------- //

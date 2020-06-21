@@ -5,9 +5,6 @@ describe('SpawnProcessTaskTemplate', () => {
 
     test('constructor', () => {
         const a = new (SpawnProcessTaskTemplate.create('python', {}, {
-            createResult: (context, base) => {
-                return base
-            },
             getInterruptionResult: async () => {
                 return undefined
             }

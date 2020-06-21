@@ -1,9 +1,10 @@
 import ChildProcessTaskTemplate, {
-    ChildProcessReadableStream, ChildProcessTaskContext, LineHandler,
-    ProcessOptions,
-    Result
+    ChildProcessReadableStream,
+    LineHandler,
+    ProcessOptions
 } from '../templates/ChildProcessTaskTemplate'
 import {ArgArray, argAsArray} from './arguments'
+import ChildProcessTaskContext from './ChildProcessTaskContext'
 
 export interface LineMatch {
     line: string
@@ -16,23 +17,23 @@ export type LineMatcherFunction = (line: string) => LineMatch|null
 export type LineMatcherDefinition = string|RegExp|LineMatcherFunction
 
 export type LineMatcherHandler<
-    PResult extends Result = Result,
+    RData extends {} = {},
     POptions extends ProcessOptions = ProcessOptions,
     PMessage = string,
     IResult = any
-    > = (this: ChildProcessTaskTemplate<PResult, POptions, PMessage, IResult>,
-         context: ChildProcessTaskContext<PResult, POptions, PMessage, IResult>,
+    > = (this: ChildProcessTaskTemplate<RData, POptions, PMessage, IResult>,
+         context: ChildProcessTaskContext<RData, POptions, PMessage, IResult>,
          match: LineMatch, stream: ChildProcessReadableStream) => void
 
 export interface LineMatcherEntry<
-    PResult extends Result = Result,
+    RData extends {} = {},
     POptions extends ProcessOptions = ProcessOptions,
     PMessage = string,
     IResult = any
     > {
     matcher: LineMatcherFunction,
     streams: null|ChildProcessReadableStream[]
-    handler: LineMatcherHandler<PResult, POptions, PMessage, IResult>
+    handler: LineMatcherHandler<RData, POptions, PMessage, IResult>
 }
 
 export interface Options {
@@ -40,7 +41,7 @@ export interface Options {
 }
 
 export class LineMatcher<
-    PResult extends Result = Result,
+    RData extends {} = {},
     POptions extends ProcessOptions = ProcessOptions,
     PMessage = string,
     IResult = any
@@ -50,7 +51,7 @@ export class LineMatcher<
     // ---- INITIALISATION ---------------------------------------------------------------------------------------- //
     // ------------------------------------------------------------------------------------------------------------ //
 
-    protected entries: LineMatcherEntry<PResult, POptions, PMessage, IResult>[]
+    protected entries: LineMatcherEntry<RData, POptions, PMessage, IResult>[]
 
     readonly neverParseStringToRegex: boolean
 
@@ -64,9 +65,9 @@ export class LineMatcher<
     // ------------------------------------------------------------------------------------------------------------ //
 
     add(matcher: LineMatcherDefinition,
-        handler?: LineMatcherHandler<PResult, POptions, PMessage, IResult>,
-        streams?: ArgArray<ChildProcessReadableStream>): LineMatcherEntry<PResult, POptions, PMessage, IResult> {
-        const result: LineMatcherEntry<PResult, POptions, PMessage, IResult> = {
+        handler?: LineMatcherHandler<RData, POptions, PMessage, IResult>,
+        streams?: ArgArray<ChildProcessReadableStream>): LineMatcherEntry<RData, POptions, PMessage, IResult> {
+        const result: LineMatcherEntry<RData, POptions, PMessage, IResult> = {
             matcher: this.getMatcherFunction(matcher),
             handler: handler || (() => { return }),
             streams: argAsArray(streams, null),
@@ -86,9 +87,9 @@ export class LineMatcher<
         }).filter((math) => math !== null ) as LineMatch[]
     }
 
-    get lineHandler(): LineHandler<PResult, POptions, PMessage, IResult> {
+    get lineHandler(): LineHandler<RData, POptions, PMessage, IResult> {
         const entries = this.entries
-        return function (context: ChildProcessTaskContext<PResult, POptions, PMessage, IResult>,
+        return function (context: ChildProcessTaskContext<RData, POptions, PMessage, IResult>,
                          stream: ChildProcessReadableStream,
                          line: string) {
             entries.forEach((entry) => {

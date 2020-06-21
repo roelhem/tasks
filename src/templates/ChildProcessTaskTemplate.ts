@@ -1,18 +1,19 @@
-import {NamedTaskProvider} from '@/'
 import {ChildProcess, CommonOptions, SendHandle, Serializable} from 'child_process'
-import {TaskInterruptionFlag} from '../types'
-import TaskContext from '../TaskContext'
+import {NamedTaskProvider, TaskInterruptionFlag} from '../types'
+import TaskContext from '../utils/TaskContext'
 import {ArgArray, argAsArray, LineMatcher, mergeDefaultProps} from '../utils'
 import * as readline from 'readline'
 import {Readable, Writable} from 'stream'
-import {createWritableManager, WritableManager} from './WritableManager'
+import {createWritableManager, WritableManager} from '../utils/WritableManager'
+import ChildProcessTaskContext from '../utils/ChildProcessTaskContext'
 
 export interface ProcessOptions extends CommonOptions {
     args?: string[]
     defaultKillSignal?: NodeJS.Signals | number
 }
 
-export interface Result {
+export interface ChildProcessTaskResult<RData extends {} = {}> {
+    data: Partial<RData>
     childProcess: ChildProcess
     code: number|null
     signal: string|null
@@ -63,30 +64,21 @@ export type StreamOptions = Partial<Record<ChildProcessWritableStream, WritableS
                           & Partial<Record<ChildProcessReadableStream, ReadableStreamOptions>>
 
 export type LineHandler<
-    PResult extends Result = Result,
+    RData extends {} = {},
     POptions extends ProcessOptions = ProcessOptions,
     PMessage = string,
-    IResult = any> = (this: ChildProcessTaskTemplate<PResult, POptions, PMessage, IResult>,
-                      context: ChildProcessTaskContext<PResult, POptions, PMessage, IResult>,
+    IResult = any> = (this: ChildProcessTaskTemplate<RData, POptions, PMessage, IResult>,
+                      context: ChildProcessTaskContext<RData, POptions, PMessage, IResult>,
                       stream: ChildProcessReadableStream,
                       line: string) => void
 export type LineHandlerDefinition<
-    PResult extends Result = Result,
+    RData extends {} = {},
     POptions extends ProcessOptions = ProcessOptions,
     PMessage = string,
-    IResult = any> = LineHandler<PResult, POptions, PMessage, IResult>|LineMatcher<PResult, POptions, PMessage, IResult>
-
-export type ChildProcessTaskContext<
-    PResult extends Result = Result,
-    POptions extends ProcessOptions = ProcessOptions,
-    PMessage = string,
-    IResult = any> = TaskContext<PResult, TaskArgs<POptions>, PMessage, IResult> & {
-    childProcess: ChildProcess,
-    taskOptions: POptions,
-}
+    IResult = any> = LineHandler<RData, POptions, PMessage, IResult>|LineMatcher<RData, POptions, PMessage, IResult>
 
 export interface Options<
-    PResult extends Result = Result,
+    RData extends {} = {},
     POptions extends ProcessOptions = ProcessOptions,
     PMessage = string,
     IResult = any
@@ -98,17 +90,17 @@ export interface Options<
     endEvent?: 'exit'|'close'
     inheritEnv?: boolean
     extraEnv?: NodeJS.ProcessEnv
-    lineHandlers?: ArgArray<LineHandlerDefinition<PResult, POptions, PMessage, IResult>>
+    lineHandlers?: ArgArray<LineHandlerDefinition<RData, POptions, PMessage, IResult>>
 }
 
-export type TaskArgs<POptions extends ProcessOptions = ProcessOptions> = [Partial<POptions>?, Hooks?]
+export type ChildProcessTaskArgs<POptions extends ProcessOptions = ProcessOptions> = [Partial<POptions>?, Hooks?]
 
 export default abstract class ChildProcessTaskTemplate<
-        PResult extends Result = Result,
+        RData extends {} = {},
         POptions extends ProcessOptions = ProcessOptions,
         PMessage = string,
         IResult = any
-    > implements NamedTaskProvider<PResult, TaskArgs<POptions>, PMessage, IResult> {
+    > implements NamedTaskProvider<ChildProcessTaskResult<RData>, ChildProcessTaskArgs<POptions>, PMessage, IResult> {
 
     // ------------------------------------------------------------------------------------------------------------ //
     // ---- STATIC METHODS ---------------------------------------------------------------------------------------- //
@@ -165,9 +157,9 @@ export default abstract class ChildProcessTaskTemplate<
     protected name?: string
     protected constructorDefaultTaskOptions: Partial<POptions>
     protected endEvent: 'exit'|'close'
-    protected lineHandlers: LineHandler<PResult, POptions, PMessage, IResult>[]
+    protected lineHandlers: LineHandler<RData, POptions, PMessage, IResult>[]
 
-    protected constructor(command: string, options: Options<PResult, POptions, PMessage, IResult> = {}) {
+    protected constructor(command: string, options: Options<RData, POptions, PMessage, IResult> = {}) {
         this.command = command
         this.prefixArgs = options.prefixArgs || []
         this.name = options.name
@@ -197,38 +189,38 @@ export default abstract class ChildProcessTaskTemplate<
 
     protected abstract get defaultTaskOptions(): POptions
 
-    protected abstract startChildProcess(context: TaskContext<PResult, TaskArgs<POptions>, PMessage, IResult>,
-                                         args: string[],
-                                         options: POptions): Promise<ChildProcess>
+    protected abstract startChildProcess(
+        context: TaskContext<ChildProcessTaskResult<RData>, ChildProcessTaskArgs<POptions>, PMessage, IResult>,
+        args: string[],
+        options: POptions
+    ): Promise<ChildProcess>
 
-    protected abstract createResult(context: ChildProcessTaskContext<PResult, POptions, PMessage, IResult>,
-                                    base: Result): PResult
-
-    protected abstract getInterruptionResult(context: ChildProcessTaskContext<PResult, POptions, PMessage, IResult>,
+    protected abstract getInterruptionResult(context: ChildProcessTaskContext<RData, POptions, PMessage, IResult>,
                                              interruptionFlag: TaskInterruptionFlag): Promise<IResult>
 
     // ------------------------------------------------------------------------------------------------------------ //
     // ---- OVERRIDABLE METHODS ----------------------------------------------------------------------------------- //
     // ------------------------------------------------------------------------------------------------------------ //
 
-    protected waitForEnd(context: ChildProcessTaskContext<PResult, POptions, PMessage, IResult>,
-                         childProcess: ChildProcess): Promise<PResult> {
-        return new Promise<PResult>((resolve, reject) => {
+    protected waitForEnd(context: ChildProcessTaskContext<RData, POptions, PMessage, IResult>,
+                         childProcess: ChildProcess): Promise<ChildProcessTaskResult<RData>> {
+        return new Promise<ChildProcessTaskResult<RData>>((resolve, reject) => {
             childProcess.on('error', err => {
                 reject(err)
             })
 
             childProcess.on(this.endEvent, (code?: number|null, signal?: string|null) => {
-                resolve(this.createResult(context, {
+                resolve({
+                    data: context.getData(),
                     childProcess,
                     code: typeof code === 'number' ? code : null,
                     signal: typeof signal === 'string' ? signal : null,
-                }))
+                })
             })
         })
     }
 
-    protected getKillSignal(context: ChildProcessTaskContext<PResult, POptions, PMessage, IResult>,
+    protected getKillSignal(context: ChildProcessTaskContext<RData, POptions, PMessage, IResult>,
                             interruptionFlag: TaskInterruptionFlag): NodeJS.Signals | number {
         // TODO: Make this better
         return context.taskOptions.defaultKillSignal || 'SIGTERM'
@@ -335,7 +327,7 @@ export default abstract class ChildProcessTaskTemplate<
         return this.getStreams(childProcess, this.readableStreams, withModes)
     }
 
-    protected initReadline(context: ChildProcessTaskContext<PResult, POptions, PMessage, IResult>,
+    protected initReadline(context: ChildProcessTaskContext<RData, POptions, PMessage, IResult>,
                            childProcess: ChildProcess,
                            stream: ChildProcessReadableStream): readline.Interface|null {
         // Check the stream mode.
@@ -361,7 +353,7 @@ export default abstract class ChildProcessTaskTemplate<
         return result
     }
 
-    protected initReadlineStreams(context: ChildProcessTaskContext<PResult, POptions, PMessage, IResult>,
+    protected initReadlineStreams(context: ChildProcessTaskContext<RData, POptions, PMessage, IResult>,
                                   childProcess: ChildProcess): Map<ChildProcessReadableStream, readline.Interface> {
         const res = new Map<ChildProcessReadableStream, readline.Interface>()
         for (const stream of this.readableStreams) {
@@ -445,7 +437,7 @@ export default abstract class ChildProcessTaskTemplate<
         }
     }
 
-    protected async killChildProcess(context: ChildProcessTaskContext<PResult, POptions, PMessage, IResult>,
+    protected async killChildProcess(context: ChildProcessTaskContext<RData, POptions, PMessage, IResult>,
                                      interruptionFlag: TaskInterruptionFlag): Promise<IResult> {
         const killSignal = this.getKillSignal(context, interruptionFlag)
 
@@ -457,14 +449,11 @@ export default abstract class ChildProcessTaskTemplate<
     }
 
     protected async createChildProcessTaskContext(
-        context: TaskContext<PResult, TaskArgs<POptions>, PMessage, IResult>,
+        context: TaskContext<ChildProcessTaskResult<RData>, ChildProcessTaskArgs<POptions>, PMessage, IResult>,
         childProcess: ChildProcess,
         taskOptions: POptions
-    ): Promise<ChildProcessTaskContext<PResult, POptions, PMessage, IResult>> {
-        return Object.assign(context, {
-            childProcess,
-            taskOptions,
-        })
+    ): Promise<ChildProcessTaskContext<RData, POptions, PMessage, IResult>> {
+        return new ChildProcessTaskContext<RData, POptions, PMessage, IResult>(context, childProcess, taskOptions)
     }
 
 
@@ -477,9 +466,9 @@ export default abstract class ChildProcessTaskTemplate<
     }
 
     async task(
-        context: TaskContext<PResult, TaskArgs<POptions>, PMessage, IResult>,
-        ...args: TaskArgs<POptions>
-    ): Promise<PResult> {
+        context: TaskContext<ChildProcessTaskResult<RData>, ChildProcessTaskArgs<POptions>, PMessage, IResult>,
+        ...args: ChildProcessTaskArgs<POptions>
+    ): Promise<ChildProcessTaskResult<RData>> {
         // Getting the args
         const options: POptions = this.getTaskOptions(args[0] || {})
         const hooks: Hooks = args[1] || {}

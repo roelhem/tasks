@@ -1,10 +1,10 @@
-import TaskContext from './TaskContext'
+import TaskContext from './utils/TaskContext'
+import {Task} from './Task'
 
 // -------------------------------------------------------------------------------------------------------------- //
 //   Task Definition                                                                                              //
 // -------------------------------------------------------------------------------------------------------------- //
 
-import {CleanupTask, SubTask, Task} from './Task'
 
 export type TaskFunction<TResult = void, TArgs extends any[] = [], PMessage = string, IResult = any> =
     (context: TaskContext<TResult, TArgs, PMessage>, ...args: TArgs) => Promise<TResult>|TResult|void

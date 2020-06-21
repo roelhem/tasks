@@ -1,7 +1,6 @@
 import {LineMatcher} from '../../../src/utils'
-import TaskContext from '../../../src/TaskContext'
-import SpawnProcessTaskTemplate, {ProcessOptions, Result} from '../../../src/templates/SpawnProcessTaskTemplate'
-import {ChildProcessTaskContext, TaskArgs} from '../../../src/templates/ChildProcessTaskTemplate'
+import SpawnProcessTaskTemplate from '../../../src/templates/SpawnProcessTaskTemplate'
+import ChildProcessTaskContext from '../../../src/utils/ChildProcessTaskContext'
 
 describe('LineMatcher', () => {
 
@@ -77,23 +76,22 @@ describe('LineMatcher', () => {
         lineMatch.add(/^B$/, lineIsB)
 
         const lineHandler = lineMatch.lineHandler
-        const context = TaskContext.empty<Result, TaskArgs<ProcessOptions>>()
         const echo = SpawnProcessTaskTemplate.create('echo')
         const that = new echo()
 
-        lineHandler.call(that, context as ChildProcessTaskContext, 'stdout', 'C')
+        lineHandler.call(that, {} as ChildProcessTaskContext, 'stdout', 'C')
         expect(lineIsA).toBeCalledTimes(0)
         expect(lineIsB).toBeCalledTimes(0)
 
-        lineHandler.call(that, context as ChildProcessTaskContext, 'stdout', 'A')
+        lineHandler.call(that, {} as ChildProcessTaskContext, 'stdout', 'A')
         expect(lineIsA).toBeCalledTimes(1)
         expect(lineIsB).toBeCalledTimes(0)
 
-        lineHandler.call(that, context as ChildProcessTaskContext, 'stdout', 'B')
+        lineHandler.call(that, {} as ChildProcessTaskContext, 'stdout', 'B')
         expect(lineIsA).toBeCalledTimes(1)
         expect(lineIsB).toBeCalledTimes(1)
 
-        lineHandler.call(that, context as ChildProcessTaskContext, 'stdout', 'A')
+        lineHandler.call(that, {} as ChildProcessTaskContext, 'stdout', 'A')
         expect(lineIsA).toBeCalledTimes(2)
         expect(lineIsB).toBeCalledTimes(1)
     })

@@ -1,6 +1,6 @@
 import task, {SpawnProcessTaskTemplate} from '../../src'
 import {SendHandle, Serializable} from 'child_process'
-import {WritableManager} from '../../src/templates/WritableManager'
+import {WritableManager} from '../../src/utils/WritableManager'
 import {Hooks} from '../../src/templates/ChildProcessTaskTemplate'
 import {LineMatcher} from '../../src/utils'
 import fn = jest.fn

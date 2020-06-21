@@ -9,9 +9,6 @@
     "baseUrl": ".",
     "resolveJsonModule": true,
     "sourceMap": true,
-    "paths": {
-      "@/*": ["src"]
-    },
     "typeRoots": [
       "src/typings",
       "node_modules/@types"

@@ -11,7 +11,7 @@ import {
     TaskInterruptionFlag,
     TaskState
 } from './types'
-import TaskContext from './TaskContext'
+import TaskContext from './utils/TaskContext'
 import {
     isNamedTaskProvider,
     isProgressInheritanceOffset,

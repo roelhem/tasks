@@ -1,149 +1,171 @@
 import ChildProcessTaskTemplate, {
-    ChildProcessTaskContext,
     Options as ChildProcessTaskOptions,
     ProcessOptions as ChildProcessTaskProcessOptions,
-    Result as ChildProcessTaskResult, TaskArgs,
-    TaskArgs as ChildProcessTaskArgs,
+    ChildProcessTaskResult,
+    ChildProcessTaskArgs,
 } from './ChildProcessTaskTemplate'
 import {ChildProcess, spawn, SpawnOptions} from 'child_process'
 import {TaskInterruptionFlag} from '../types'
-import TaskContext from '../TaskContext'
+import TaskContext from '../utils/TaskContext'
+import ChildProcessTaskContext from '../utils/ChildProcessTaskContext'
 
-export interface ProcessOptions extends ChildProcessTaskProcessOptions, SpawnOptions {
-
-}
-
-export interface Result extends ChildProcessTaskResult {
+export interface SpawnProcessOptions extends ChildProcessTaskProcessOptions, SpawnOptions {
 
 }
 
-export interface Options<PResult extends Result = Result,
-    POptions extends ProcessOptions = ProcessOptions,
+export interface Options<RData extends {} = {},
+    POptions extends SpawnProcessOptions = SpawnProcessOptions,
     PMessage = string,
-    IResult = any> extends ChildProcessTaskOptions<PResult, POptions, PMessage, IResult> {
+    IResult = any> extends ChildProcessTaskOptions<RData, POptions, PMessage, IResult> {
 
 }
 
-export interface SpawnProcessTaskConstructor<PResult extends Result = Result,
-                                             POptions extends ProcessOptions = ProcessOptions,
+export interface SpawnProcessTaskConstructor<RData extends {} = {},
+                                             POptions extends SpawnProcessOptions = SpawnProcessOptions,
                                              PMessage = string,
                                              IResult = any> {
-    new (options?: Options<PResult, POptions, PMessage, IResult>):
-        SpawnProcessTaskTemplate<PResult, POptions, PMessage, IResult>
+    new (options?: Options<RData, POptions, PMessage, IResult>):
+        SpawnProcessTaskTemplate<RData, POptions, PMessage, IResult>
 }
 
 export interface SpawnProcessTaskMethods<
-    PResult extends Result = Result,
-    POptions extends ProcessOptions = ProcessOptions,
+    RData extends {} = {},
+    POptions extends SpawnProcessOptions = SpawnProcessOptions,
     PMessage = string,
     IResult = any> {
-    createResult: (this: ChildProcessTaskTemplate<PResult, POptions, PMessage, IResult>,
-                   context: ChildProcessTaskContext<PResult, POptions, PMessage, IResult>,
-                   base: ChildProcessTaskResult) => PResult,
-    getInterruptionResult: (this: ChildProcessTaskTemplate<PResult, POptions, PMessage, IResult>,
-                            context: ChildProcessTaskContext<PResult, POptions, PMessage, IResult>,
+    getInterruptionResult: (this: SpawnProcessTaskTemplate<RData, POptions, PMessage, IResult>,
+                            context: ChildProcessTaskContext<RData, POptions, PMessage, IResult>,
                             interruptionFlag: TaskInterruptionFlag) => Promise<IResult>,
-    prepareChildProcess?: (this: ChildProcessTaskTemplate<PResult, POptions, PMessage, IResult>,
-                           context: TaskContext<PResult, TaskArgs<POptions>, PMessage, IResult>,
+    prepareChildProcess?: (this: SpawnProcessTaskTemplate<RData, POptions, PMessage, IResult>,
+                           context: TaskContext<ChildProcessTaskResult<RData>,
+                                                ChildProcessTaskArgs<POptions>,
+                                                PMessage,
+                                                IResult>,
                            childProcess: ChildProcess,
                            args: string[],
-                           options: ProcessOptions) => Promise<ChildProcess>,
-    getKillSignal?: (this: ChildProcessTaskTemplate<PResult, POptions, PMessage, IResult>,
-                     context: ChildProcessTaskContext<PResult, POptions, PMessage, IResult>,
+                           options: SpawnProcessOptions) => Promise<ChildProcess>,
+    getKillSignal?: (this: SpawnProcessTaskTemplate<RData, POptions, PMessage, IResult>,
+                     context: ChildProcessTaskContext<RData, POptions, PMessage, IResult>,
                      interruptionFlag: TaskInterruptionFlag) => NodeJS.Signals | number
 }
 
 export default abstract class SpawnProcessTaskTemplate<
-        PResult extends Result = Result,
-        POptions extends ProcessOptions = ProcessOptions,
+        RData extends {} = {},
+        POptions extends SpawnProcessOptions = SpawnProcessOptions,
         PMessage = string,
         IResult = any
-    > extends ChildProcessTaskTemplate<PResult, POptions, PMessage, IResult> {
+    > extends ChildProcessTaskTemplate<RData, POptions, PMessage, IResult> {
 
     // ------------------------------------------------------------------------------------------------------------ //
     // ---- STATIC CONSTRUCTOR ------------------------------------------------------------------------------------ //
     // ------------------------------------------------------------------------------------------------------------ //
 
-    static create(
-        command: string,
-        defaultOptions?: ProcessOptions,
-        methods?: Partial<SpawnProcessTaskMethods>
-    ): SpawnProcessTaskConstructor
     static create<
-        PResult extends Result = Result,
-        POptions extends ProcessOptions = ProcessOptions,
+        RData extends {} = {},
+        PMessage = string,
+        >(
+        command: string,
+        defaultOptions?: SpawnProcessOptions,
+        methods?: Partial<SpawnProcessTaskMethods<RData, SpawnProcessOptions, PMessage>>
+    ): SpawnProcessTaskConstructor<RData, SpawnProcessOptions, PMessage>
+    static create<
+        RData extends {} = {},
+        POptions extends SpawnProcessOptions = SpawnProcessOptions,
+        PMessage = string,
+        >(
+        command: string,
+        defaultOptions?: POptions,
+        methods?: Partial<SpawnProcessTaskMethods<RData, POptions, PMessage>>
+    ): SpawnProcessTaskConstructor<RData, POptions, PMessage>
+    static create<
+        RData extends {} = {},
+        POptions extends SpawnProcessOptions = SpawnProcessOptions,
         PMessage = string,
         IResult = any>(
         command: string,
         defaultOptions: POptions,
-        methods: SpawnProcessTaskMethods<PResult, POptions, PMessage, IResult>
-    ): SpawnProcessTaskConstructor<PResult, POptions, PMessage, IResult>
+        methods: SpawnProcessTaskMethods<RData, POptions, PMessage, IResult>
+    ): SpawnProcessTaskConstructor<RData, POptions, PMessage, IResult>
     static create<
-        PResult extends Result = Result,
-        POptions extends ProcessOptions = ProcessOptions,
+        RData extends {} = {},
+        POptions extends SpawnProcessOptions = SpawnProcessOptions,
         PMessage = string,
         IResult = any>(
         command: string,
-        defaultOptions?: ProcessOptions|POptions,
-        methods?: Partial<SpawnProcessTaskMethods>|SpawnProcessTaskMethods<PResult, POptions, PMessage, IResult>
-    ): SpawnProcessTaskConstructor|SpawnProcessTaskConstructor<PResult, POptions, PMessage, IResult> {
+        defaultOptions?: SpawnProcessOptions|POptions,
+        methods?: Partial<SpawnProcessTaskMethods<RData, SpawnProcessOptions, PMessage>>|SpawnProcessTaskMethods<RData, POptions, PMessage, IResult>
+    ): SpawnProcessTaskConstructor<RData, SpawnProcessOptions, PMessage>
+        |SpawnProcessTaskConstructor<RData, POptions, PMessage>
+        |SpawnProcessTaskConstructor<RData, POptions, PMessage, IResult> {
         if(defaultOptions !== undefined
             && methods !== undefined
-            && 'createResult' in methods && typeof methods.createResult === 'function'
             && 'getInterruptionResult' in methods && typeof methods.getInterruptionResult === 'function') {
-            return SpawnProcessTaskTemplate.createFull<PResult, POptions, PMessage, IResult>(
+            return SpawnProcessTaskTemplate.createFull<RData, POptions, PMessage, IResult>(
                 command,
                 defaultOptions as POptions,
-                methods as SpawnProcessTaskMethods<PResult, POptions, PMessage, IResult>
+                methods as SpawnProcessTaskMethods<RData, POptions, PMessage, IResult>
+            )
+        } else if(defaultOptions !== undefined) {
+            return SpawnProcessTaskTemplate.createFull<RData, POptions, PMessage>(
+                command,
+                defaultOptions as POptions,
+                {
+                    getInterruptionResult: async () => { return },
+                    ...methods
+                } as SpawnProcessTaskMethods<RData, POptions, PMessage>
             )
         } else {
-            return SpawnProcessTaskTemplate.createSimple(command, defaultOptions, methods as SpawnProcessTaskMethods)
+            return SpawnProcessTaskTemplate.createFull<RData, SpawnProcessOptions, PMessage>(
+                command,
+                {},
+                {
+                    getInterruptionResult: async () => { return },
+                    ...methods
+                } as SpawnProcessTaskMethods<RData, SpawnProcessOptions, PMessage>
+            )
         }
     }
 
     protected static createSimple(command: string,
-                                  defaultOptions: ProcessOptions = {},
+                                  defaultOptions: SpawnProcessOptions = {},
                                   methods: Partial<SpawnProcessTaskMethods> = {}): SpawnProcessTaskConstructor {
         return SpawnProcessTaskTemplate.createFull(command, defaultOptions, {
-            createResult: (context, base) => base,
             getInterruptionResult: async () => undefined,
             ...methods,
         })
     }
 
     protected static createFull<
-        PResult extends Result = Result,
-        POptions extends ProcessOptions = ProcessOptions,
+        RData extends {} = {},
+        POptions extends SpawnProcessOptions = SpawnProcessOptions,
         PMessage = string,
         IResult = any>(
             command: string,
             defaultOptions: POptions,
-            methods: SpawnProcessTaskMethods<PResult, POptions, PMessage, IResult>
-    ): SpawnProcessTaskConstructor<PResult, POptions, PMessage, IResult> {
+            methods: SpawnProcessTaskMethods<RData, POptions, PMessage, IResult>
+    ): SpawnProcessTaskConstructor<RData, POptions, PMessage, IResult> {
 
         // Implement the abstract methods.
-        const result = class extends SpawnProcessTaskTemplate<PResult, POptions, PMessage, IResult> {
-            constructor(options: Options<PResult, POptions, PMessage, IResult> = {}) {
+        const result = class extends SpawnProcessTaskTemplate<RData, POptions, PMessage, IResult> {
+            constructor(options: Options<RData, POptions, PMessage, IResult> = {}) {
                 super(command, options)
-            }
-
-            protected createResult(context: ChildProcessTaskContext<PResult, POptions, PMessage, IResult>,
-                                   base: ChildProcessTaskResult): PResult {
-                return methods.createResult.call(this, context, base)
             }
 
             protected get defaultTaskOptions(): POptions {
                 return defaultOptions
             }
 
-            protected getInterruptionResult(context: ChildProcessTaskContext<PResult, POptions, PMessage, IResult>,
+            protected getInterruptionResult(context: ChildProcessTaskContext<RData, POptions, PMessage, IResult>,
                                             interruptionFlag: TaskInterruptionFlag): Promise<IResult> {
                 return methods.getInterruptionResult.call(this, context, interruptionFlag)
             }
 
-            protected async startChildProcess(context: TaskContext<PResult, TaskArgs<POptions>, PMessage, IResult>,
+            protected async startChildProcess(context: TaskContext<ChildProcessTaskResult<RData>,
+                                                                   ChildProcessTaskArgs<POptions>,
+                                                                   PMessage,
+                                                                   IResult>,
                                               args: string[],
-                                              options: ProcessOptions): Promise<ChildProcess> {
+                                              options: SpawnProcessOptions): Promise<ChildProcess> {
                 if(methods.prepareChildProcess) {
                     const childProcess = await super.startChildProcess(context, args, options)
                     return await methods.prepareChildProcess.call(this, context, childProcess, args, options)
@@ -164,7 +186,7 @@ export default abstract class SpawnProcessTaskTemplate<
     // ---- INITIALISATION ---------------------------------------------------------------------------------------- //
     // ------------------------------------------------------------------------------------------------------------ //
 
-    protected constructor(command: string, options: Options<PResult, POptions, PMessage, IResult> = {}) {
+    protected constructor(command: string, options: Options<RData, POptions, PMessage, IResult> = {}) {
         super(command, options)
     }
 
@@ -172,10 +194,11 @@ export default abstract class SpawnProcessTaskTemplate<
     // ---- DEFAULT IMPLEMENTATION -------------------------------------------------------------------------------- //
     // ------------------------------------------------------------------------------------------------------------ //
 
-    protected async startChildProcess(context: TaskContext<PResult, ChildProcessTaskArgs<POptions>,
+    protected async startChildProcess(context: TaskContext<ChildProcessTaskResult<RData>,
+                                                           ChildProcessTaskArgs<POptions>,
                                                            PMessage, IResult>,
                                       args: string[],
-                                      options: ProcessOptions): Promise<ChildProcess> {
+                                      options: SpawnProcessOptions): Promise<ChildProcess> {
         return spawn(this.command, args, options)
     }
 

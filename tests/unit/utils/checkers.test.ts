@@ -1,5 +1,5 @@
 import {NamedTaskProvider, TaskFunction, TaskProvider} from '../../../src'
-import {ProgressInheritanceOffset, ProgressInheritanceRange, ProgressInheritanceScale} from '../../../src/types'
+import {ProgressInheritanceOffset, ProgressInheritanceRange, ProgressInheritanceScale} from '../../../src'
 import {
     isNamedTaskProvider, isProgressInheritance, isProgressInheritanceOffset, isProgressInheritanceRange,
     isProgressInheritanceScale,

@@ -1,7 +1,12 @@
-import task, {Task, TaskDefinition} from './'
-import {CleanupTask, SubTask} from './Task'
-import {CleanupTaskDefinition, ProgressInheritance, ProgressInheritanceScale, TaskInterrupter} from './types'
-import {isProgressInheritance, isTaskDefinition} from './utils'
+import {CleanupTask, SubTask, Task} from '../Task'
+import {
+    CleanupTaskDefinition,
+    ProgressInheritance,
+    ProgressInheritanceScale,
+    TaskDefinition,
+    TaskInterrupter
+} from '../types'
+import {isProgressInheritance, isTaskDefinition} from './checkers'
 
 export default class TaskContext<TResult = void, TArgs extends any[] = [], PMessage = string, IResult = any> {
 
@@ -9,7 +14,7 @@ export default class TaskContext<TResult = void, TArgs extends any[] = [], PMess
                  TArgs extends any[] = [],
                  PMessage = string,
                  IResult = any>(...args: TArgs): TaskContext<TResult, TArgs, PMessage, IResult> {
-        const emptyTask = task.create<TResult, TArgs, PMessage, IResult>(() => { return })
+        const emptyTask = new Task<TResult, TArgs, PMessage, IResult>(() => { return })
         return new TaskContext<TResult, TArgs, PMessage, IResult>(emptyTask, args)
     }
 
