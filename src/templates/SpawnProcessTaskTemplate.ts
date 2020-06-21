@@ -76,7 +76,7 @@ export default abstract class SpawnProcessTaskTemplate<
         IResult = any>(
         command: string,
         defaultOptions: POptions,
-        methods: SpawnProcessTaskMethods<PResult, POptions, PMessage, IResult>,
+        methods: SpawnProcessTaskMethods<PResult, POptions, PMessage, IResult>
     ): SpawnProcessTaskConstructor<PResult, POptions, PMessage, IResult>
     static create<
         PResult extends Result = Result,
@@ -85,7 +85,7 @@ export default abstract class SpawnProcessTaskTemplate<
         IResult = any>(
         command: string,
         defaultOptions?: ProcessOptions|POptions,
-        methods?: Partial<SpawnProcessTaskMethods>|SpawnProcessTaskMethods<PResult, POptions, PMessage, IResult>,
+        methods?: Partial<SpawnProcessTaskMethods>|SpawnProcessTaskMethods<PResult, POptions, PMessage, IResult>
     ): SpawnProcessTaskConstructor|SpawnProcessTaskConstructor<PResult, POptions, PMessage, IResult> {
         if(defaultOptions !== undefined
             && methods !== undefined
@@ -94,7 +94,7 @@ export default abstract class SpawnProcessTaskTemplate<
             return SpawnProcessTaskTemplate.createFull<PResult, POptions, PMessage, IResult>(
                 command,
                 defaultOptions as POptions,
-                methods as SpawnProcessTaskMethods<PResult, POptions, PMessage, IResult>,
+                methods as SpawnProcessTaskMethods<PResult, POptions, PMessage, IResult>
             )
         } else {
             return SpawnProcessTaskTemplate.createSimple(command, defaultOptions, methods as SpawnProcessTaskMethods)
@@ -107,7 +107,7 @@ export default abstract class SpawnProcessTaskTemplate<
         return SpawnProcessTaskTemplate.createFull(command, defaultOptions, {
             createResult: (context, base) => base,
             getInterruptionResult: async () => undefined,
-            ...methods
+            ...methods,
         })
     }
 
@@ -118,7 +118,7 @@ export default abstract class SpawnProcessTaskTemplate<
         IResult = any>(
             command: string,
             defaultOptions: POptions,
-            methods: SpawnProcessTaskMethods<PResult, POptions, PMessage, IResult>,
+            methods: SpawnProcessTaskMethods<PResult, POptions, PMessage, IResult>
     ): SpawnProcessTaskConstructor<PResult, POptions, PMessage, IResult> {
 
         // Implement the abstract methods.

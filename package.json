@@ -8,6 +8,7 @@
     "test": "jest --config jest.config.json",
     "build": "tsc",
     "lint": "tslint -p tsconfig.json",
+    "lint-fix": "tslint -p tsconfig.json --fix",
     "refresh": "rm -rf ./node_modules ./package-lock.json && npm install",
     "prepare": "npm run build",
     "prepublishOnly": "npm test && npm run lint",
