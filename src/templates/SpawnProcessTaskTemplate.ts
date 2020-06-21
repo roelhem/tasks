@@ -36,14 +36,6 @@ export interface SpawnProcessTaskMethods<
     getInterruptionResult: (this: SpawnProcessTaskTemplate<RData, POptions, PMessage, IResult>,
                             context: ChildProcessTaskContext<RData, POptions, PMessage, IResult>,
                             interruptionFlag: TaskInterruptionFlag) => Promise<IResult>,
-    prepareChildProcess?: (this: SpawnProcessTaskTemplate<RData, POptions, PMessage, IResult>,
-                           context: TaskContext<ChildProcessTaskResult<RData>,
-                                                ChildProcessTaskArgs<POptions>,
-                                                PMessage,
-                                                IResult>,
-                           childProcess: ChildProcess,
-                           args: string[],
-                           options: SpawnProcessOptions) => Promise<ChildProcess>,
     getKillSignal?: (this: SpawnProcessTaskTemplate<RData, POptions, PMessage, IResult>,
                      context: ChildProcessTaskContext<RData, POptions, PMessage, IResult>,
                      interruptionFlag: TaskInterruptionFlag) => NodeJS.Signals | number
@@ -159,20 +151,6 @@ export default abstract class SpawnProcessTaskTemplate<
             protected getInterruptionResult(context: ChildProcessTaskContext<RData, POptions, PMessage, IResult>,
                                             interruptionFlag: TaskInterruptionFlag): Promise<IResult> {
                 return methods.getInterruptionResult.call(this, context, interruptionFlag)
-            }
-
-            protected async startChildProcess(context: TaskContext<ChildProcessTaskResult<RData>,
-                                                                   ChildProcessTaskArgs<POptions>,
-                                                                   PMessage,
-                                                                   IResult>,
-                                              args: string[],
-                                              options: SpawnProcessOptions): Promise<ChildProcess> {
-                if(methods.prepareChildProcess) {
-                    const childProcess = await super.startChildProcess(context, args, options)
-                    return await methods.prepareChildProcess.call(this, context, childProcess, args, options)
-                } else {
-                    return await super.startChildProcess(context, args, options)
-                }
             }
         }
 

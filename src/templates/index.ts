@@ -1,4 +1,5 @@
 import TriggerableTaskTemplate from './TriggerableTaskTemplate'
 import SpawnProcessTaskTemplate from './SpawnProcessTaskTemplate'
+import ChildProcessTaskTemplate from './ChildProcessTaskTemplate'
 
-export { TriggerableTaskTemplate, SpawnProcessTaskTemplate }
+export { TriggerableTaskTemplate, SpawnProcessTaskTemplate, ChildProcessTaskTemplate }
