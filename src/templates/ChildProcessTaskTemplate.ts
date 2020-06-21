@@ -61,8 +61,11 @@ export type ReadableStreamOptions = ReadableStreamMode|Partial<ReadableStreamCon
 export type StreamOptions = Partial<Record<ChildProcessWritableStream, WritableStreamOptions>>
                           & Partial<Record<ChildProcessReadableStream, ReadableStreamOptions>>
 
-export type ChildProcessTaskContext<PResult, POptions, PMessage, IResult> =
-    TaskContext<PResult, TaskArgs<POptions>, PMessage, IResult> & {
+export type ChildProcessTaskContext<
+    PResult extends Result = Result,
+    POptions extends ProcessOptions = ProcessOptions,
+    PMessage = string,
+    IResult = any> = TaskContext<PResult, TaskArgs<POptions>, PMessage, IResult> & {
     childProcess: ChildProcess,
     taskOptions: POptions,
 }
@@ -80,7 +83,8 @@ export interface Options<POptions extends ProcessOptions = ProcessOptions> {
 export type TaskArgs<POptions extends ProcessOptions = ProcessOptions> = [Partial<POptions>?, Hooks?]
 
 export default abstract class ChildProcessTaskTemplate<
-        PResult extends Result = Result, POptions extends ProcessOptions = ProcessOptions,
+        PResult extends Result = Result,
+        POptions extends ProcessOptions = ProcessOptions,
         PMessage = string,
         IResult = any
     > implements NamedTaskProvider<PResult, TaskArgs<POptions>, PMessage, IResult> {
