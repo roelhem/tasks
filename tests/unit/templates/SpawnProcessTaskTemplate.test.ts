@@ -4,26 +4,35 @@ import ChildProcessTaskTemplate from '../../../src/templates/ChildProcessTaskTem
 describe('SpawnProcessTaskTemplate', () => {
 
     test('constructor', () => {
-        const t = new SpawnProcessTaskTemplate('python')
-        expect(t).toBeInstanceOf(SpawnProcessTaskTemplate)
-        expect(t).toBeInstanceOf(ChildProcessTaskTemplate)
+        const a = new (SpawnProcessTaskTemplate.create('python', {}, {
+            createResult: (context, base) => {
+                return base
+            },
+            getInterruptionResult: async () => {
+                return undefined
+            }
+        }))()
+        expect(a).toBeInstanceOf(SpawnProcessTaskTemplate)
+        expect(a).toBeInstanceOf(ChildProcessTaskTemplate)
     })
 
     test('.defaultName', () => {
-        const a = new SpawnProcessTaskTemplate('python')
+        const c = SpawnProcessTaskTemplate.create('python')
+        const a = new c()
         expect(a.defaultName).toBe('python')
 
-        const b = new SpawnProcessTaskTemplate('python', {
+        const b = new c({
             prefixArgs: ['--version']
         })
         expect(b.defaultName).toBe('python --version')
     })
 
     test('.taskName', () => {
-        const a = new SpawnProcessTaskTemplate('command')
+        const c = SpawnProcessTaskTemplate.create('command')
+        const a = new c()
         expect(a.taskName).toBe('command')
 
-        const b = new SpawnProcessTaskTemplate('command', {
+        const b = new c({
             prefixArgs: ['arg1', 'arg2']
         })
         expect(b.defaultName).toBe('command arg1 arg2')

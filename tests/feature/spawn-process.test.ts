@@ -3,32 +3,32 @@ import {SendHandle, Serializable} from 'child_process'
 import {WritableManager} from '../../src/templates/WritableManager'
 import {Hooks} from '../../src/templates/ChildProcessTaskTemplate'
 
-function createMockHooks(name: string = ''): Hooks {
+function createMockHooks(name: string = '', log: boolean = false): Hooks {
     const prefix = name ? `${name}:` : ''
     return {
         onClose: jest.fn((code: number, signal: NodeJS.Signals) => {
-            console.log(prefix, 'CLOSE', code, signal)
+            if(log) { console.log(prefix, 'CLOSE', code, signal) }
         }),
         onDisconnect: jest.fn(() => {
-            console.log(prefix, 'DISCONNECT')
+            if(log) { console.log(prefix, 'DISCONNECT') }
         }),
         onError: jest.fn((error: Error) => {
-            console.log(prefix, 'ERROR', error)
+            if(log) { console.log(prefix, 'ERROR', error) }
         }),
         onExit: jest.fn((code: number|null, signal: NodeJS.Signals|null) => {
-            console.log(prefix, 'EXIT', code, signal)
+            if(log) { console.log(prefix, 'EXIT', code, signal) }
         }),
         onMessage: jest.fn((message: Serializable, sendHandle: SendHandle) => {
-            console.log(prefix, 'MESSAGE', message, sendHandle)
+            if(log) { console.log(prefix, 'MESSAGE', message, sendHandle) }
         }),
         onData: jest.fn((stream: string, chunk: string|Buffer) => {
-            console.log(prefix, `GOT DATA FROM '${stream}': `, chunk)
+            if(log) { console.log(prefix, `GOT DATA FROM '${stream}': `, chunk) }
         }),
         onLine: jest.fn((stream: string, line: string) => {
-            console.log(prefix, `GOT A LINE FROM '${stream}': `, line)
+            if(log) { console.log(prefix, `GOT A LINE FROM '${stream}': `, line) }
         }),
         onSendAvailable: jest.fn((stream: string, send: WritableManager) => {
-            console.log(prefix, `SEND AVAILABLE FROM '${stream}': `, send)
+            if(log) { console.log(prefix, `SEND AVAILABLE FROM '${stream}': `, send) }
         })
     }
 }
@@ -36,13 +36,10 @@ function createMockHooks(name: string = ''): Hooks {
 describe('Usage with Spawn - ChildProcesses', () => {
 
     test('Echo a string', async () => {
-        const a = new SpawnProcessTaskTemplate('echo', {
-            name: '[Echo a string](a)',
-            prefixArgs: ['prefixArg']
-        })
+        const echo = SpawnProcessTaskTemplate.create('echo')
+        const a = new echo({ prefixArgs: ['prefixArg'] })
 
         const hooks = createMockHooks('Echo Task')
-
 
         await task.run(a, {
             args: ['\nargFromTask', '\nlastArg']
@@ -54,13 +51,58 @@ describe('Usage with Spawn - ChildProcesses', () => {
     })
 
     test('Get node version', async () => {
-        const a = new SpawnProcessTaskTemplate('node', {
-            prefixArgs: ['--version']
-        })
-        const hooks = createMockHooks('Echo Task')
+        const node = SpawnProcessTaskTemplate.create('node')
+        const a = new node({ prefixArgs: ['--version'], inheritEnv: true })
+        const hooks = createMockHooks()
         await task.run(a, undefined, hooks)
 
         expect(hooks.onLine).toBeCalled()
     })
 
+    test('Environment variables', async () => {
+        const lines: string[] = []
+        const handleLine = jest.fn((context, stream, line) => {
+            lines.push(line)
+        })
+        const nodeExecute = SpawnProcessTaskTemplate.create('node', {} , {handleLine})
+        const a = new nodeExecute({
+            inheritEnv: false,
+            extraEnv: { PATH: process.env.PATH, TEST_ENV_A: 'A', TEST_ENV_B: undefined },
+            prefixArgs: ['-e'],
+        })
+        const code = `
+            Object.entries(process.env).forEach(function (value) {
+                console.log(value[0] + ': ' + value[1])
+            })
+        `
+        await task.run(a, { args: [code]})
+
+        expect(handleLine).toBeCalled()
+        expect(lines).toContain(`PATH: ${process.env.PATH}`)
+        expect(lines).toContain(`TEST_ENV_A: A`)
+    })
+
+    test('Arguments', async () => {
+        const lines: string[] = []
+        const handleLine = jest.fn((context, stream, line) => {
+            lines.push(line)
+        })
+        const nodeExecute = SpawnProcessTaskTemplate.create('node', {} , {handleLine})
+        const a = new nodeExecute({
+            inheritEnv: false,
+            extraEnv: { PATH: process.env.PATH, TEST_ENV_A: 'A', TEST_ENV_B: undefined },
+            prefixArgs: ['-e'],
+        })
+        const code = `
+            process.argv.forEach(function (value) {
+                console.log(value)
+            })
+        `
+        await task.run(a, { args: [code, 'a', 'abc cde', '3']})
+
+        expect(handleLine).toBeCalled()
+        expect(lines).toContain('a')
+        expect(lines).toContain('abc cde')
+        expect(lines).toContain('3')
+    })
 })

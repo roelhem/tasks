@@ -1,6 +1,6 @@
 import {NamedTaskProvider} from '@/'
 import {ChildProcess, CommonOptions, SendHandle, Serializable} from 'child_process'
-import {TaskContext} from '../types'
+import {TaskContext, TaskInterruptionFlag} from '../types'
 import {ArgArray, argAsArray, mergeDefaultProps} from '../utils'
 import * as readline from 'readline'
 import {Readable, Writable} from 'stream'
@@ -8,6 +8,7 @@ import {createWritableManager, WritableManager} from './WritableManager'
 
 export interface ProcessOptions extends CommonOptions {
     args?: string[]
+    defaultKillSignal?: NodeJS.Signals | number
 }
 
 export interface Result {
@@ -60,12 +61,20 @@ export type ReadableStreamOptions = ReadableStreamMode|Partial<ReadableStreamCon
 export type StreamOptions = Partial<Record<ChildProcessWritableStream, WritableStreamOptions>>
                           & Partial<Record<ChildProcessReadableStream, ReadableStreamOptions>>
 
+export type ChildProcessTaskContext<PResult, POptions, PMessage, IResult> =
+    TaskContext<PResult, TaskArgs<POptions>, PMessage, IResult> & {
+    childProcess: ChildProcess,
+    taskOptions: POptions,
+}
+
 export interface Options<POptions extends ProcessOptions = ProcessOptions> {
     name?: string
     streams?: StreamOptions
     prefixArgs?: string[]
     defaultTaskOptions?: Partial<POptions>
     endEvent?: 'exit'|'close'
+    inheritEnv?: boolean
+    extraEnv?: NodeJS.ProcessEnv
 }
 
 export type TaskArgs<POptions extends ProcessOptions = ProcessOptions> = [Partial<POptions>?, Hooks?]
@@ -123,6 +132,8 @@ export default abstract class ChildProcessTaskTemplate<
 
     readonly command: string
     readonly prefixArgs: string[]
+    readonly inheritEnv: boolean
+    readonly extraEnv: NodeJS.ProcessEnv
     readonly streamConfig: StreamConfig
     protected readableStreams: ChildProcessReadableStream[] = ['stdout', 'stderr']
     protected writableStreams: ChildProcessWritableStream[] = ['stdin']
@@ -136,6 +147,8 @@ export default abstract class ChildProcessTaskTemplate<
         this.name = options.name
         this.constructorDefaultTaskOptions = options.defaultTaskOptions || {}
         this.endEvent = options.endEvent || 'close'
+        this.inheritEnv = options.inheritEnv === undefined ? true : options.inheritEnv
+        this.extraEnv = options.extraEnv || {}
         this.streamConfig = ChildProcessTaskTemplate.interpretStreamOptions(
             options.streams,
             this.readableStreams,
@@ -153,18 +166,21 @@ export default abstract class ChildProcessTaskTemplate<
                                          args: string[],
                                          options: POptions): Promise<ChildProcess>
 
-    protected abstract createResult(context: TaskContext<PResult, TaskArgs<POptions>, PMessage, IResult>,
+    protected abstract createResult(context: ChildProcessTaskContext<PResult, POptions, PMessage, IResult>,
                                     base: Result): PResult
 
-    protected abstract handleLine(context: TaskContext<PResult, TaskArgs<POptions>, PMessage, IResult>,
+    protected abstract handleLine(context: ChildProcessTaskContext<PResult, POptions, PMessage, IResult>,
                                   stream: ChildProcessReadableStream,
                                   line: string): void
+
+    protected abstract getInterruptionResult(context: ChildProcessTaskContext<PResult, POptions, PMessage, IResult>,
+                                             interruptionFlag: TaskInterruptionFlag): Promise<IResult>
 
     // ------------------------------------------------------------------------------------------------------------ //
     // ---- OVERRIDABLE METHODS ----------------------------------------------------------------------------------- //
     // ------------------------------------------------------------------------------------------------------------ //
 
-    protected waitForEnd(context: TaskContext<PResult, TaskArgs<POptions>, PMessage, IResult>,
+    protected waitForEnd(context: ChildProcessTaskContext<PResult, POptions, PMessage, IResult>,
                          childProcess: ChildProcess): Promise<PResult> {
         return new Promise<PResult>((resolve, reject) => {
             childProcess.on('error', err => {
@@ -179,6 +195,12 @@ export default abstract class ChildProcessTaskTemplate<
                 }))
             })
         })
+    }
+
+    protected getKillSignal(context: ChildProcessTaskContext<PResult, POptions, PMessage, IResult>,
+                            interruptionFlag: TaskInterruptionFlag): NodeJS.Signals | number {
+        // TODO: Make this better
+        return context.taskOptions.defaultKillSignal || 'SIGTERM'
     }
 
     // ------------------------------------------------------------------------------------------------------------ //
@@ -199,7 +221,9 @@ export default abstract class ChildProcessTaskTemplate<
 
     protected getTaskOptions(input: Partial<POptions>): POptions {
         const defaultTaskOptions = mergeDefaultProps(this.constructorDefaultTaskOptions, this.defaultTaskOptions)
-        return mergeDefaultProps(input, defaultTaskOptions)
+        const result = mergeDefaultProps(input, defaultTaskOptions)
+        result.env = this.getFullEnv(result.env)
+        return result
     }
 
     protected hookToEvent(childProcess: ChildProcess, event: string, listener?: (...args: any) => void) {
@@ -210,9 +234,21 @@ export default abstract class ChildProcessTaskTemplate<
 
     protected getFullArgs(args?: string[]): string[] {
         if(args === undefined) {
-            args = this.getTaskOptions({}).args || []
+            args = this.defaultTaskOptions.args || []
         }
         return [...this.prefixArgs, ...args]
+    }
+
+    protected getFullEnv(env?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+        if (env === undefined) {
+            env = this.defaultTaskOptions.env || {}
+        }
+
+        return {
+            ...(this.inheritEnv ? process.env : {}),
+            ...this.extraEnv,
+            ...env,
+        }
     }
 
     protected getStream(childProcess: ChildProcess, stream: ChildProcessWritableStream): Writable|null
@@ -268,7 +304,7 @@ export default abstract class ChildProcessTaskTemplate<
         return this.getStreams(childProcess, this.readableStreams, withModes)
     }
 
-    protected initReadline(context: TaskContext<PResult, TaskArgs<POptions>, PMessage, IResult>,
+    protected initReadline(context: ChildProcessTaskContext<PResult, POptions, PMessage, IResult>,
                            childProcess: ChildProcess,
                            stream: ChildProcessReadableStream): readline.Interface|null {
         // Check the stream mode.
@@ -292,7 +328,7 @@ export default abstract class ChildProcessTaskTemplate<
         return result
     }
 
-    protected initReadlineStreams(context: TaskContext<PResult, TaskArgs<POptions>, PMessage, IResult>,
+    protected initReadlineStreams(context: ChildProcessTaskContext<PResult, POptions, PMessage, IResult>,
                                   childProcess: ChildProcess): Map<ChildProcessReadableStream, readline.Interface> {
         const res = new Map<ChildProcessReadableStream, readline.Interface>()
         for (const stream of this.readableStreams) {
@@ -376,6 +412,28 @@ export default abstract class ChildProcessTaskTemplate<
         }
     }
 
+    protected async killChildProcess(context: ChildProcessTaskContext<PResult, POptions, PMessage, IResult>,
+                                     interruptionFlag: TaskInterruptionFlag): Promise<IResult> {
+        const killSignal = this.getKillSignal(context, interruptionFlag)
+
+        context.childProcess.kill(killSignal)
+
+        // TODO: Wait for terminate
+
+        return await this.getInterruptionResult(context, interruptionFlag)
+    }
+
+    protected async createChildProcessTaskContext(
+        context: TaskContext<PResult, TaskArgs<POptions>, PMessage, IResult>,
+        childProcess: ChildProcess,
+        taskOptions: POptions
+    ): Promise<ChildProcessTaskContext<PResult, POptions, PMessage, IResult>> {
+        return Object.assign(context, {
+            childProcess,
+            taskOptions,
+        })
+    }
+
 
     // ------------------------------------------------------------------------------------------------------------ //
     // ---- IMPLEMENTING: NamedTaskProvider ----------------------------------------------------------------------- //
@@ -396,9 +454,13 @@ export default abstract class ChildProcessTaskTemplate<
         // Starting the child process.
         const processArguments = this.getFullArgs(options.args || [])
         const childProcess = await this.startChildProcess(context, processArguments, options)
+        const childProcessTaskContext = await this.createChildProcessTaskContext(context, childProcess, options)
+
+        // Initialising the killed.
+        context.setInterrupter(flag => this.killChildProcess(childProcessTaskContext, flag))
 
         // Initialising the readline streams.
-        const readlineMap = this.initReadlineStreams(context, childProcess)
+        const readlineMap = this.initReadlineStreams(childProcessTaskContext, childProcess)
 
         // Registering the hooks.
         this.hookToEvent(childProcess, 'close', hooks.onClose)
@@ -411,7 +473,7 @@ export default abstract class ChildProcessTaskTemplate<
         this.registerSendAvailableHooks(childProcess, hooks) // Should be last
 
         // Wait for the termination
-        return await this.waitForEnd(context, childProcess)
+        return await this.waitForEnd(childProcessTaskContext, childProcess)
     }
 
 }
