@@ -93,7 +93,8 @@ export default abstract class SpawnProcessTaskTemplate<
         IResult = any>(
         command: string,
         defaultOptions?: SpawnProcessOptions|POptions,
-        methods?: Partial<SpawnProcessTaskMethods<RData, SpawnProcessOptions, PMessage>>|SpawnProcessTaskMethods<RData, POptions, PMessage, IResult>
+        methods?: Partial<SpawnProcessTaskMethods<RData, SpawnProcessOptions, PMessage>>
+                | SpawnProcessTaskMethods<RData, POptions, PMessage, IResult>
     ): SpawnProcessTaskConstructor<RData, SpawnProcessOptions, PMessage>
         |SpawnProcessTaskConstructor<RData, POptions, PMessage>
         |SpawnProcessTaskConstructor<RData, POptions, PMessage, IResult> {
@@ -111,7 +112,7 @@ export default abstract class SpawnProcessTaskTemplate<
                 defaultOptions as POptions,
                 {
                     getInterruptionResult: async () => { return },
-                    ...methods
+                    ...methods,
                 } as SpawnProcessTaskMethods<RData, POptions, PMessage>
             )
         } else {
@@ -120,7 +121,7 @@ export default abstract class SpawnProcessTaskTemplate<
                 {},
                 {
                     getInterruptionResult: async () => { return },
-                    ...methods
+                    ...methods,
                 } as SpawnProcessTaskMethods<RData, SpawnProcessOptions, PMessage>
             )
         }

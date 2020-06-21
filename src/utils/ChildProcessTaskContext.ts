@@ -30,7 +30,7 @@ export default class ChildProcessTaskContext<
     constructor(
         originalContext: TaskContext<ChildProcessTaskResult<RData>, ChildProcessTaskArgs<POptions>, PMessage, IResult>,
         childProcess: ChildProcess,
-        taskOptions: POptions,
+        taskOptions: POptions
     ) {
         super(originalContext.task, originalContext.args)
         this.childProcessTask = originalContext.task
