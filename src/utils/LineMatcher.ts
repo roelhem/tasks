@@ -69,7 +69,7 @@ export class LineMatcher<
         const result: LineMatcherEntry<PResult, POptions, PMessage, IResult> = {
             matcher: this.getMatcherFunction(matcher),
             handler: handler || (() => { return }),
-            streams: argAsArray(streams, null)
+            streams: argAsArray(streams, null),
         }
         this.entries.push(result)
         return result
@@ -162,7 +162,7 @@ export class LineMatcher<
                 line,
                 match: result[0],
                 parts: result.slice(1),
-                groups: result.groups || {}
+                groups: result.groups || {},
             }
         }
     }

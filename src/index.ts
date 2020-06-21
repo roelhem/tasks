@@ -57,12 +57,8 @@ const task: TaskFacade = Object.assign(taskConstructorFunction, {
 })
 
 export default task
-export { Task} from './Task'
-export {
-    TaskDefinition,
-    TaskFunction,
-    TaskProvider,
-    NamedTaskProvider
-} from './types'
+export * from './Task'
+export * from './types'
 export { TaskInterruptionError }
-export { SpawnProcessTaskTemplate, TriggerableTaskTemplate } from './templates'
+export * from './templates'
+export * from './utils'
