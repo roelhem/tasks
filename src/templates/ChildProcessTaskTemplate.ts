@@ -281,13 +281,13 @@ export default abstract class ChildProcessTaskTemplate<
         streamNames?: ChildProcessStream[],
         withModes?: ArgArray<WritableStreamMode | ReadableStreamMode>
     ): Map<ChildProcessStream, Readable|Writable> {
-        withModes = argAsArray(withModes, undefined)
+        withModes = argAsArray(withModes, null)
         streamNames = streamNames || this.streams
         const result = new Map<ChildProcessStream, Readable|Writable>()
         for (const streamName of streamNames) {
             const streamMode = this.streamConfig[streamName].mode
             const stream = this.getStream(childProcess, streamName)
-            if (stream !== null && (withModes === undefined || withModes.indexOf(streamMode) >= 0)) {
+            if (stream !== null && (withModes === null || withModes.indexOf(streamMode) >= 0)) {
                 result.set(streamName, stream)
             }
         }
