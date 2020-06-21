@@ -5,16 +5,15 @@ import {
     NamedTaskProvider,
     ProgressInheritance,
     ProgressInheritanceScale,
-    TaskContext,
     TaskDefinition,
     TaskFunction,
     TaskInterrupter,
     TaskInterruptionFlag,
     TaskState
 } from './types'
+import TaskContext from './TaskContext'
 import {
     isNamedTaskProvider,
-    isProgressInheritance,
     isProgressInheritanceOffset,
     isProgressInheritanceRange,
     isProgressInheritanceScale,
@@ -268,51 +267,19 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     // ------------------------------------------------------------------------------------------------------------ //
 
     protected createContext(...args: TArgs): TaskContext<TResult, TArgs, PMessage, IResult> {
-        return {
-            args,
-            reject: (reason: any): void => this.handleReject(reason),
-            resolve: (result: TResult): void => this.handleResolve(result),
-            interrupt: (interruptResult: IResult): void => this.handleInterrupt(interruptResult),
-            setInterrupter: (interrupter: (flag: TaskInterruptionFlag) => (Promise<IResult> | IResult)): void =>
-                this.handleSetInterrupter(interrupter),
-            setProgressTotal: (total: number): void =>
-                this.handleSetProgressTotal(total),
-            setProgressMessage: (message: PMessage): void =>
-                this.handleSetProgressMessage(message),
-            setProgress: (progress: number, total?: number, message?: PMessage): void =>
-                this.handleSetProgress(progress, total, message),
-            addSubTask: <SubTResult = void, SubTArgs extends any[] = []> (
-                arg0: string|ProgressInheritance|TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>,
-                arg1: string|TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>,
-                arg2: TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>
-            ): SubTask<SubTResult, SubTArgs, PMessage, IResult> =>
-                this.handleAddSubTask(arg0, arg1, arg2),
-            runSubTask: <SubTResult = void, SubTArgs extends any[] = []> (
-                arg0: string|ProgressInheritance|TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>,
-                arg1: string|TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>|any,
-                arg2: TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>|any,
-                ...args: any[]
-            ): SubTask<SubTResult, SubTArgs, PMessage, IResult> =>
-                this.handleRunSubTask(arg0, arg1, arg2, ...args),
-            addCleanupTask: (
-                arg0: CleanupTaskDefinition<TResult, TArgs, IResult>|string|ProgressInheritanceScale,
-                arg1?: CleanupTaskDefinition<TResult, TArgs, IResult>|string,
-                arg2?: CleanupTaskDefinition<TResult, TArgs, IResult>
-            ): CleanupTask<TResult, TArgs, IResult> =>
-                this.handleAddCleanupTask(arg0, arg1, arg2),
-        } as TaskContext<TResult, TArgs, PMessage, IResult>
+        return new TaskContext<TResult, TArgs, PMessage, IResult>(this, args)
     }
 
     // ------------------------------------------------------------------------------------------------------------ //
     // ---- TASK HANDLERS ----------------------------------------------------------------------------------------- //
     // ------------------------------------------------------------------------------------------------------------ //
 
-    protected handleResolve(result: TResult): void {
+    resolve(result: TResult): void {
         this.assertState(TaskState.RUNNING)
         this.setResult(result)
     }
 
-    protected handleReject(reason: any): void {
+    reject(reason: any): void {
         this.assertState(TaskState.RUNNING)
 
         if(isTaskInterruptionError<IResult>(reason)) {
@@ -322,86 +289,19 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
         }
     }
 
-    protected handleInterrupt(interruptResult: IResult): void {
+    /**
+     * Sets the task to the interruption state without calling the interrupter.
+     *
+     * @param interruptResult
+     */
+    softInterrupt(interruptResult: IResult): void {
         this.assertState(TaskState.RUNNING)
         this.setInterrupt(interruptResult)
     }
 
-    protected handleSetInterrupter(interrupter: TaskInterrupter<IResult>): void {
+    setInterrupter(interrupter: TaskInterrupter<IResult>): void {
         this.interrupter = interrupter
     }
-
-    protected handleSetProgress(progress: number, totalProgress?: number, progressMessage?: PMessage): void {
-        this.changeProgress(progress, totalProgress, progressMessage)
-    }
-
-    protected handleSetProgressTotal(total: number): void {
-        this.changeProgress(undefined, total)
-    }
-
-    protected handleSetProgressMessage(progressMessage?: PMessage): void {
-        this.changeProgress(undefined, undefined, progressMessage)
-    }
-
-    protected handleAddSubTask<SubTResult, SubTArgs extends any[]>(
-        arg0: TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>|string|ProgressInheritance,
-        arg1?: TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>|string,
-        arg2?: TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>
-    ): SubTask<SubTResult, SubTArgs, PMessage, IResult> {
-        if(isTaskDefinition(arg0)) {
-            return this.addSubTask<SubTResult, SubTArgs>(arg0)
-        } else if(isTaskDefinition(arg1)) {
-            if(isProgressInheritance(arg0)) {
-                return this.addSubTask<SubTResult, SubTArgs>(arg1, arg0)
-            } else {
-                return this.addSubTask<SubTResult, SubTArgs>(arg1, undefined, arg0 as string)
-            }
-        } else if(isTaskDefinition(arg2)) {
-            return this.addSubTask<SubTResult, SubTArgs>(arg2, arg0 as ProgressInheritance, arg1 as string)
-        }
-        throw new TypeError(`Invalid TaskContext.addSubTask(...) call.`)
-    }
-
-    protected handleRunSubTask<SubTResult, SubTArgs extends any[]>(
-        arg0: TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>|string|ProgressInheritance,
-        arg1?: TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>|string|any,
-        arg2?: TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>|any,
-        ...args: any[]
-    ): SubTask<SubTResult, SubTArgs, PMessage, IResult> {
-        // Getting the right task.
-        if(isTaskDefinition(arg0)) { // TYPE 1
-            return this.handleAddSubTask<SubTResult, SubTArgs>(arg0)
-                       .run(...[arg1, arg2, ...args] as SubTArgs)
-        } else if(isTaskDefinition(arg1)) { // TYPE 1, 2
-            return this.handleAddSubTask<SubTResult, SubTArgs>(arg0, arg1)
-                       .run(...[arg2, ...args] as SubTArgs)
-        } else if(isTaskDefinition(arg2)) { // TYPE 3
-            return this.handleAddSubTask<SubTResult, SubTArgs>(arg0 as ProgressInheritance, arg1 as string, arg2)
-                       .run(...args as SubTArgs)
-        } else {
-            throw new TypeError(`Invalid TaskContext.runSubTask(...) call.`)
-        }
-    }
-
-    protected handleAddCleanupTask(
-        arg0: CleanupTaskDefinition<TResult, TArgs, IResult>|string|ProgressInheritanceScale,
-        arg1?: CleanupTaskDefinition<TResult, TArgs, IResult>|string,
-        arg2?: CleanupTaskDefinition<TResult, TArgs, IResult>
-    ): CleanupTask<TResult, TArgs, IResult> {
-        if(isTaskDefinition(arg0)) {
-            return this.addCleanupTask(arg0)
-        } else if(isTaskDefinition(arg1)) {
-            if(isProgressInheritance(arg0)) {
-                return this.addCleanupTask(arg1, arg0)
-            } else {
-                return this.addCleanupTask(arg1, undefined, arg0 as string)
-            }
-        } else if(isTaskDefinition(arg2)) {
-            return this.addCleanupTask(arg2, arg0 as ProgressInheritanceScale, arg1 as string)
-        }
-        throw new TypeError(`Invalid TaskContext.addCleanupTask(...) call.`)
-    }
-
 
     // ------------------------------------------------------------------------------------------------------------ //
     // ---- STATE CONTROL ----------------------------------------------------------------------------------------- //
@@ -454,7 +354,7 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
      *
      * @param expectedStates
      */
-    protected assertState(...expectedStates: TaskState[]) {
+    assertState(...expectedStates: TaskState[]) {
         if(expectedStates.indexOf(this.state) === -1) {
             const expectedStatesString = expectedStates.join(', ')
             throw new Error(`Task is in the wrong state. [state: ${this.state}, expected: ${expectedStatesString}]`)
@@ -465,7 +365,7 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     // ---- PROGRESS ---------------------------------------------------------------------------------------------- //
     // ------------------------------------------------------------------------------------------------------------ //
 
-    protected changeProgress(currentProgress?: number, totalProgress?: number, progressMessage?: PMessage) {
+    changeProgress(currentProgress?: number, totalProgress?: number, progressMessage?: PMessage) {
         // Set default values
         if(currentProgress === undefined) {
             currentProgress = this.currentProgress
@@ -615,7 +515,7 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     // ---- SUB TASKS --------------------------------------------------------------------------------------------- //
     // ------------------------------------------------------------------------------------------------------------ //
 
-    protected addSubTask<SubTResult, SubTArgs extends any[]>(
+    addSubTask<SubTResult, SubTArgs extends any[]>(
         task: TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>,
         progressInheritance?: ProgressInheritance,
         name?: string
@@ -734,7 +634,7 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     // ---- CLEANUP ----------------------------------------------------------------------------------------------- //
     // ------------------------------------------------------------------------------------------------------------ //
 
-    protected addCleanupTask(
+    addCleanupTask(
         task: CleanupTaskDefinition<TResult, TArgs, IResult>,
         progressInheritanceScale?: ProgressInheritanceScale,
         name?: string
@@ -844,9 +744,9 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
      * @param args The argument which you want to feed into the task.
      */
     task(context: TaskContext<TResult, TArgs, PMessage, IResult>, ...args: TArgs): Promise<TResult>|TResult|void {
-        if(isTaskFunction(this.taskDefinition)) {
+        if(isTaskFunction<TResult, TArgs, PMessage, IResult>(this.taskDefinition)) {
             return this.taskDefinition(context, ...args)
-        } else if(isTaskProvider(this.taskDefinition)) {
+        } else if(isTaskProvider<TResult, TArgs, PMessage, IResult>(this.taskDefinition)) {
             return this.taskDefinition.task(context, ...args)
         } else {
             throw new Error(

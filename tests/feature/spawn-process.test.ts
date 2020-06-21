@@ -2,6 +2,8 @@ import task, {SpawnProcessTaskTemplate} from '../../src'
 import {SendHandle, Serializable} from 'child_process'
 import {WritableManager} from '../../src/templates/WritableManager'
 import {Hooks} from '../../src/templates/ChildProcessTaskTemplate'
+import {LineMatcher} from '../../src/utils'
+import fn = jest.fn
 
 function createMockHooks(name: string = '', log: boolean = false): Hooks {
     const prefix = name ? `${name}:` : ''
@@ -50,11 +52,34 @@ describe('Usage with Spawn - ChildProcesses', () => {
         expect(hooks.onLine).toBeCalledWith('stdout', 'lastArg')
     })
 
+    test('With line matcher', async () => {
+        const echo = SpawnProcessTaskTemplate.create('echo')
+
+        // Creating the matcher
+        const lineMatcher = new LineMatcher()
+        const startsWithA = fn(() => { return })
+        lineMatcher.add(/^A/, startsWithA)
+        const endsWithA = fn(() => { return })
+        lineMatcher.add(/A$/, endsWithA)
+        const containsE = fn(() => { return })
+        lineMatcher.add(/E/, containsE)
+
+        const a = new echo({ lineHandlers: lineMatcher })
+
+        await task.run(a, {
+            args: ['Ab\nAc\nD\nA\ndA']
+        })
+
+        expect(startsWithA).toBeCalledTimes(3)
+        expect(endsWithA).toBeCalledTimes(2)
+        expect(containsE).toBeCalledTimes(0)
+    })
+
     test('Get node version', async () => {
         const node = SpawnProcessTaskTemplate.create('node')
         const a = new node({ prefixArgs: ['--version'], inheritEnv: true })
         const hooks = createMockHooks()
-        await task.run(a, undefined, hooks)
+        await task.run(a, {}, hooks)
 
         expect(hooks.onLine).toBeCalled()
     })
@@ -64,11 +89,12 @@ describe('Usage with Spawn - ChildProcesses', () => {
         const handleLine = jest.fn((context, stream, line) => {
             lines.push(line)
         })
-        const nodeExecute = SpawnProcessTaskTemplate.create('node', {} , {handleLine})
+        const nodeExecute = SpawnProcessTaskTemplate.create('node', {})
         const a = new nodeExecute({
             inheritEnv: false,
             extraEnv: { PATH: process.env.PATH, TEST_ENV_A: 'A', TEST_ENV_B: undefined },
             prefixArgs: ['-e'],
+            lineHandlers: handleLine
         })
         const code = `
             Object.entries(process.env).forEach(function (value) {
@@ -87,11 +113,12 @@ describe('Usage with Spawn - ChildProcesses', () => {
         const handleLine = jest.fn((context, stream, line) => {
             lines.push(line)
         })
-        const nodeExecute = SpawnProcessTaskTemplate.create('node', {} , {handleLine})
+        const nodeExecute = SpawnProcessTaskTemplate.create('node', {})
         const a = new nodeExecute({
             inheritEnv: false,
             extraEnv: { PATH: process.env.PATH, TEST_ENV_A: 'A', TEST_ENV_B: undefined },
             prefixArgs: ['-e'],
+            lineHandlers: handleLine
         })
         const code = `
             process.argv.forEach(function (value) {

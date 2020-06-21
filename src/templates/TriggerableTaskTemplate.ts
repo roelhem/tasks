@@ -1,4 +1,5 @@
-import {TaskContext, TaskProvider} from '../types'
+import {TaskProvider} from '@/*'
+import TaskContext from '../TaskContext'
 
 export default class TriggerableTaskTemplate<TResult = void, TArgs extends any[] = [], PMessage = string, IResult = any>
     implements TaskProvider<TResult, TArgs, PMessage, IResult>, Promise<void> {

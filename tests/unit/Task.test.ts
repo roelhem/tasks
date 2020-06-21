@@ -1,6 +1,6 @@
 import {Task, TaskInterruptionError} from '../../src'
 import {DEFAULT_TASK_NAME} from '../../src/constants'
-import {TaskContext} from '../../src/types'
+import TaskContext from '../../src/TaskContext'
 import {TaskState} from '../../src/types'
 import {TriggerableTaskTemplate} from '../../src/templates'
 

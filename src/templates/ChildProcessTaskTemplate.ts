@@ -1,7 +1,8 @@
 import {NamedTaskProvider} from '@/'
 import {ChildProcess, CommonOptions, SendHandle, Serializable} from 'child_process'
-import {TaskContext, TaskInterruptionFlag} from '../types'
-import {ArgArray, argAsArray, mergeDefaultProps} from '../utils'
+import {TaskInterruptionFlag} from '../types'
+import TaskContext from '../TaskContext'
+import {ArgArray, argAsArray, LineMatcher, mergeDefaultProps} from '../utils'
 import * as readline from 'readline'
 import {Readable, Writable} from 'stream'
 import {createWritableManager, WritableManager} from './WritableManager'
@@ -61,6 +62,20 @@ export type ReadableStreamOptions = ReadableStreamMode|Partial<ReadableStreamCon
 export type StreamOptions = Partial<Record<ChildProcessWritableStream, WritableStreamOptions>>
                           & Partial<Record<ChildProcessReadableStream, ReadableStreamOptions>>
 
+export type LineHandler<
+    PResult extends Result = Result,
+    POptions extends ProcessOptions = ProcessOptions,
+    PMessage = string,
+    IResult = any> = (this: ChildProcessTaskTemplate<PResult, POptions, PMessage, IResult>,
+                      context: ChildProcessTaskContext<PResult, POptions, PMessage, IResult>,
+                      stream: ChildProcessReadableStream,
+                      line: string) => void
+export type LineHandlerDefinition<
+    PResult extends Result = Result,
+    POptions extends ProcessOptions = ProcessOptions,
+    PMessage = string,
+    IResult = any> = LineHandler<PResult, POptions, PMessage, IResult>|LineMatcher<PResult, POptions, PMessage, IResult>
+
 export type ChildProcessTaskContext<
     PResult extends Result = Result,
     POptions extends ProcessOptions = ProcessOptions,
@@ -70,7 +85,12 @@ export type ChildProcessTaskContext<
     taskOptions: POptions,
 }
 
-export interface Options<POptions extends ProcessOptions = ProcessOptions> {
+export interface Options<
+    PResult extends Result = Result,
+    POptions extends ProcessOptions = ProcessOptions,
+    PMessage = string,
+    IResult = any
+    > {
     name?: string
     streams?: StreamOptions
     prefixArgs?: string[]
@@ -78,6 +98,7 @@ export interface Options<POptions extends ProcessOptions = ProcessOptions> {
     endEvent?: 'exit'|'close'
     inheritEnv?: boolean
     extraEnv?: NodeJS.ProcessEnv
+    lineHandlers?: ArgArray<LineHandlerDefinition<PResult, POptions, PMessage, IResult>>
 }
 
 export type TaskArgs<POptions extends ProcessOptions = ProcessOptions> = [Partial<POptions>?, Hooks?]
@@ -144,8 +165,9 @@ export default abstract class ChildProcessTaskTemplate<
     protected name?: string
     protected constructorDefaultTaskOptions: Partial<POptions>
     protected endEvent: 'exit'|'close'
+    protected lineHandlers: LineHandler<PResult, POptions, PMessage, IResult>[]
 
-    protected constructor(command: string, options: Options<POptions> = {}) {
+    protected constructor(command: string, options: Options<PResult, POptions, PMessage, IResult> = {}) {
         this.command = command
         this.prefixArgs = options.prefixArgs || []
         this.name = options.name
@@ -158,6 +180,15 @@ export default abstract class ChildProcessTaskTemplate<
             this.readableStreams,
             this.writableStreams
         )
+        this.lineHandlers = argAsArray(options.lineHandlers).map((item) => {
+            if(typeof item === 'function') {
+                return item
+            } else if(item instanceof LineMatcher) {
+                return item.lineHandler
+            } else {
+                throw new TypeError(`Invalid LineHandler ${item}`)
+            }
+        })
     }
 
     // ------------------------------------------------------------------------------------------------------------ //
@@ -172,10 +203,6 @@ export default abstract class ChildProcessTaskTemplate<
 
     protected abstract createResult(context: ChildProcessTaskContext<PResult, POptions, PMessage, IResult>,
                                     base: Result): PResult
-
-    protected abstract handleLine(context: ChildProcessTaskContext<PResult, POptions, PMessage, IResult>,
-                                  stream: ChildProcessReadableStream,
-                                  line: string): void
 
     protected abstract getInterruptionResult(context: ChildProcessTaskContext<PResult, POptions, PMessage, IResult>,
                                              interruptionFlag: TaskInterruptionFlag): Promise<IResult>
@@ -324,9 +351,11 @@ export default abstract class ChildProcessTaskTemplate<
 
         // Create the interface
         const result = readline.createInterface({ input })
-        result.on('line', (line: string) => {
-            this.handleLine(context, stream, line)
-        })
+        for (const handler of this.lineHandlers) {
+            result.on('line', (line: string) => {
+                handler.call(this, context, stream, line)
+            })
+        }
 
         // Return the result
         return result

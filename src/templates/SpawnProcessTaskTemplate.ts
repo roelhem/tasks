@@ -1,5 +1,4 @@
 import ChildProcessTaskTemplate, {
-    ChildProcessReadableStream,
     ChildProcessTaskContext,
     Options as ChildProcessTaskOptions,
     ProcessOptions as ChildProcessTaskProcessOptions,
@@ -7,7 +6,8 @@ import ChildProcessTaskTemplate, {
     TaskArgs as ChildProcessTaskArgs,
 } from './ChildProcessTaskTemplate'
 import {ChildProcess, spawn, SpawnOptions} from 'child_process'
-import {TaskContext, TaskInterruptionFlag} from '../types'
+import {TaskInterruptionFlag} from '../types'
+import TaskContext from '../TaskContext'
 
 export interface ProcessOptions extends ChildProcessTaskProcessOptions, SpawnOptions {
 
@@ -17,7 +17,10 @@ export interface Result extends ChildProcessTaskResult {
 
 }
 
-export interface Options<POptions extends ProcessOptions> extends ChildProcessTaskOptions<POptions> {
+export interface Options<PResult extends Result = Result,
+    POptions extends ProcessOptions = ProcessOptions,
+    PMessage = string,
+    IResult = any> extends ChildProcessTaskOptions<PResult, POptions, PMessage, IResult> {
 
 }
 
@@ -25,7 +28,8 @@ export interface SpawnProcessTaskConstructor<PResult extends Result = Result,
                                              POptions extends ProcessOptions = ProcessOptions,
                                              PMessage = string,
                                              IResult = any> {
-    new (options?: Options<POptions>): SpawnProcessTaskTemplate<PResult, POptions, PMessage, IResult>
+    new (options?: Options<PResult, POptions, PMessage, IResult>):
+        SpawnProcessTaskTemplate<PResult, POptions, PMessage, IResult>
 }
 
 export interface SpawnProcessTaskMethods<
@@ -39,10 +43,6 @@ export interface SpawnProcessTaskMethods<
     getInterruptionResult: (this: ChildProcessTaskTemplate<PResult, POptions, PMessage, IResult>,
                             context: ChildProcessTaskContext<PResult, POptions, PMessage, IResult>,
                             interruptionFlag: TaskInterruptionFlag) => Promise<IResult>,
-    handleLine?: (this: ChildProcessTaskTemplate<PResult, POptions, PMessage, IResult>,
-                  context: ChildProcessTaskContext<PResult, POptions, PMessage, IResult>,
-                  stream: ChildProcessReadableStream,
-                  line: string) => void
     prepareChildProcess?: (this: ChildProcessTaskTemplate<PResult, POptions, PMessage, IResult>,
                            context: TaskContext<PResult, TaskArgs<POptions>, PMessage, IResult>,
                            childProcess: ChildProcess,
@@ -123,7 +123,7 @@ export default abstract class SpawnProcessTaskTemplate<
 
         // Implement the abstract methods.
         const result = class extends SpawnProcessTaskTemplate<PResult, POptions, PMessage, IResult> {
-            constructor(options: Options<POptions> = {}) {
+            constructor(options: Options<PResult, POptions, PMessage, IResult> = {}) {
                 super(command, options)
             }
 
@@ -154,7 +154,6 @@ export default abstract class SpawnProcessTaskTemplate<
         }
 
         // Implement the overwrite methods if they are set.
-        if(methods.handleLine) { result.prototype.handleLine = methods.handleLine }
         if(methods.getKillSignal) { result.prototype.getKillSignal = methods.getKillSignal }
 
         // Return the result.
@@ -165,18 +164,13 @@ export default abstract class SpawnProcessTaskTemplate<
     // ---- INITIALISATION ---------------------------------------------------------------------------------------- //
     // ------------------------------------------------------------------------------------------------------------ //
 
-    protected constructor(command: string, options: Options<POptions> = {}) {
+    protected constructor(command: string, options: Options<PResult, POptions, PMessage, IResult> = {}) {
         super(command, options)
     }
 
     // ------------------------------------------------------------------------------------------------------------ //
     // ---- DEFAULT IMPLEMENTATION -------------------------------------------------------------------------------- //
     // ------------------------------------------------------------------------------------------------------------ //
-
-    protected handleLine(context: TaskContext<PResult, ChildProcessTaskArgs<POptions>, PMessage, IResult>,
-                         stream: ChildProcessReadableStream, line: string): void {
-        return
-    }
 
     protected async startChildProcess(context: TaskContext<PResult, ChildProcessTaskArgs<POptions>,
                                                            PMessage, IResult>,
