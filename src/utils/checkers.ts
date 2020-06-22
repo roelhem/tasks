@@ -1,7 +1,7 @@
 import {
     NamedTaskProvider,
     ProgressInheritance,
-    ProgressInheritanceOffset,
+    ProgressInheritanceOffset, ProgressInheritanceOptions,
     ProgressInheritanceRange,
     ProgressInheritanceScale,
     TaskDefinition,
@@ -47,6 +47,10 @@ export function isProgressInheritanceScale(arg: any): arg is ProgressInheritance
     return typeof arg === 'number'
 }
 
+export function isProgressInheritanceOptions(arg: any): arg is ProgressInheritanceOptions {
+    return typeof arg === 'object' && arg !== null && arg.inheritProgress === true
+}
+
 export function isProgressInheritanceOffset(arg: any): arg is ProgressInheritanceOffset {
     return Array.isArray(arg) && arg.length === 1 && typeof arg[0] === 'number'
 }
@@ -59,4 +63,5 @@ export function isProgressInheritance(arg: any): arg is ProgressInheritance {
     return isProgressInheritanceScale(arg)
         || isProgressInheritanceOffset(arg)
         || isProgressInheritanceRange(arg)
+        || isProgressInheritanceOptions(arg)
 }

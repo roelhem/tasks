@@ -14,7 +14,7 @@ import {
 import TaskContext from './utils/TaskContext'
 import {
     isNamedTaskProvider,
-    isProgressInheritanceOffset,
+    isProgressInheritanceOffset, isProgressInheritanceOptions,
     isProgressInheritanceRange,
     isProgressInheritanceScale,
     isTaskDefinition,
@@ -550,6 +550,7 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     ): void {
         let offset: number | undefined
         let scale: number | undefined
+        let inheritMessages: boolean = true
         if (isProgressInheritanceOffset(progressInheritance)) {
             offset = progressInheritance[0]
         } else if (isProgressInheritanceRange(progressInheritance)) {
@@ -557,6 +558,14 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
             scale = progressInheritance[1] - progressInheritance[0]
         } else if (isProgressInheritanceScale(progressInheritance)) {
             scale = progressInheritance
+        } else if (isProgressInheritanceOptions(progressInheritance)) {
+            offset = progressInheritance.offset
+            scale = progressInheritance.scale
+            if(progressInheritance.end && progressInheritance.offset) {
+                scale = progressInheritance.end - progressInheritance.offset
+            }
+            inheritMessages = progressInheritance.inheritMessages === undefined ? true
+                                                                                : progressInheritance.inheritMessages
         } else {
             return
         }
@@ -567,13 +576,19 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
             }
 
             if(scale === undefined) {
-                this.changeProgress(progress + offset, undefined, progressMessage)
+                this.changeProgress(progress + offset,
+                                    undefined,
+                                    inheritMessages ? progressMessage: undefined)
             } else {
                 if (progressTotal === undefined) {
-                    this.changeProgress(offset, undefined, progressMessage)
+                    this.changeProgress(offset,
+                                        undefined,
+                                        inheritMessages ? progressMessage: undefined)
                 } else {
                     const scaled = progress / progressTotal * scale
-                    this.changeProgress(scaled + offset, undefined, progressMessage)
+                    this.changeProgress(scaled + offset,
+                                        undefined,
+                                        inheritMessages ? progressMessage: undefined)
                 }
             }
         })

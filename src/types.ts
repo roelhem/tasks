@@ -59,8 +59,16 @@ export type TaskInterrupter<IResult = any> = (flag: TaskInterruptionFlag) => Pro
 export type ProgressInheritanceScale = number
 export type ProgressInheritanceOffset = [number]
 export type ProgressInheritanceRange = [number, number]
+export interface ProgressInheritanceOptions {
+    offset?: number
+    end?: number
+    scale?: number
+    inheritMessages?: boolean
+    inheritProgress: true
+}
 
-export type ProgressInheritance = ProgressInheritanceScale|ProgressInheritanceOffset|ProgressInheritanceRange
+export type ProgressInheritance = ProgressInheritanceScale|ProgressInheritanceOffset
+                                 |ProgressInheritanceRange|ProgressInheritanceOptions
 
 // -------------------------------------------------------------------------------------------------------------- //
 //   TaskState                                                                                                    //
