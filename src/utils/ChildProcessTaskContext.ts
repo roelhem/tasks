@@ -49,6 +49,19 @@ export default class ChildProcessTaskContext<
         }
     }
 
+    pushData<K extends keyof RData>(key: K, value: RData[K] extends any[] ? RData[K][0] : never) {
+        let array = (this.getData(key) as unknown) as any[]|undefined
+        if(!Array.isArray(array)) {
+            array = []
+            this.setData(key, (array as unknown) as RData[K])
+        }
+        array.push(value)
+    }
+
+    hasData<K extends keyof RData>(key: K): boolean {
+        return this.getData(key) !== undefined
+    }
+
     getData(): Partial<RData>
     getData<K extends keyof RData>(key: K): RData[K]|undefined
     getData<K extends keyof RData>(key?: K): Partial<RData>|RData[K]|undefined {

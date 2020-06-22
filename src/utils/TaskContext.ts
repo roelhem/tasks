@@ -96,6 +96,15 @@ export default class TaskContext<TResult = void, TArgs extends any[] = [], PMess
         this.task.changeProgress(progress, total, message)
     }
 
+    incrementProgress(amount: number, total?: number, message?: PMessage): void {
+        const prevCurrent = this.task.currentProgress
+        const nextCurrent = prevCurrent + amount
+        const proposedTotal = total || this.task.totalProgress
+        const nextTotal = proposedTotal === undefined ? undefined :
+                         (proposedTotal < nextCurrent ? nextCurrent : proposedTotal)
+        this.task.changeProgress(nextCurrent, nextTotal, message)
+    }
+
     // ------------------------------------------------------------------------------------------------------------ //
     // ---- SUB TASKS --------------------------------------------------------------------------------------------- //
     // ------------------------------------------------------------------------------------------------------------ //
