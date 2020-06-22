@@ -92,7 +92,8 @@ export interface Options<
     lineHandlers?: ArgArray<LineHandlerDefinition<RData, POptions, PMessage, IResult>>
 }
 
-export type ChildProcessTaskArgs<POptions extends ChildProcessOptions = ChildProcessOptions> = [Partial<POptions>?, Hooks?]
+export type ChildProcessTaskArgs<POptions extends ChildProcessOptions = ChildProcessOptions> =
+    [Partial<POptions>?, Hooks?]
 
 export default abstract class ChildProcessTaskTemplate<
         RData extends {} = {},
