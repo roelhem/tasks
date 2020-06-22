@@ -1,7 +1,7 @@
 import ChildProcessTaskTemplate, {
     ChildProcessReadableStream,
     LineHandler,
-    ProcessOptions
+    ChildProcessOptions
 } from '../templates/ChildProcessTaskTemplate'
 import {ArgArray, argAsArray} from './arguments'
 import ChildProcessTaskContext from './ChildProcessTaskContext'
@@ -18,7 +18,7 @@ export type LineMatcherDefinition = string|RegExp|LineMatcherFunction
 
 export type LineMatcherHandler<
     RData extends {} = {},
-    POptions extends ProcessOptions = ProcessOptions,
+    POptions extends ChildProcessOptions = ChildProcessOptions,
     PMessage = string,
     IResult = any
     > = (this: ChildProcessTaskTemplate<RData, POptions, PMessage, IResult>,
@@ -27,7 +27,7 @@ export type LineMatcherHandler<
 
 export interface LineMatcherEntry<
     RData extends {} = {},
-    POptions extends ProcessOptions = ProcessOptions,
+    POptions extends ChildProcessOptions = ChildProcessOptions,
     PMessage = string,
     IResult = any
     > {
@@ -42,7 +42,7 @@ export interface Options {
 
 export class LineMatcher<
     RData extends {} = {},
-    POptions extends ProcessOptions = ProcessOptions,
+    POptions extends ChildProcessOptions = ChildProcessOptions,
     PMessage = string,
     IResult = any
     > {

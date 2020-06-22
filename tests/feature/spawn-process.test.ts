@@ -1,9 +1,8 @@
 import task, {SpawnProcessTaskTemplate} from '../../src'
 import {SendHandle, Serializable} from 'child_process'
-import {WritableManager} from '../../src/utils/WritableManager'
+import {WritableManager} from '../../src/utils'
 import {Hooks} from '../../src/templates/ChildProcessTaskTemplate'
 import {LineMatcher} from '../../src/utils'
-import fn = jest.fn
 
 function createMockHooks(name: string = '', log: boolean = false): Hooks {
     const prefix = name ? `${name}:` : ''
@@ -57,11 +56,11 @@ describe('Usage with Spawn - ChildProcesses', () => {
     test('With line matcher', async () => {
         // Creating the matcher
         const lineMatcher = new LineMatcher()
-        const startsWithA = fn(() => { return })
+        const startsWithA = jest.fn(() => { return })
         lineMatcher.add(/^A/, startsWithA)
-        const endsWithA = fn(() => { return })
+        const endsWithA = jest.fn(() => { return })
         lineMatcher.add(/A$/, endsWithA)
-        const containsE = fn(() => { return })
+        const containsE = jest.fn(() => { return })
         lineMatcher.add(/E/, containsE)
 
         const a = new echo({ lineHandlers: lineMatcher })
@@ -167,7 +166,7 @@ describe('Usage with Spawn - ChildProcesses', () => {
             }
         })
 
-        const progressUpdate = fn((_p, _t, _m) => { return })
+        const progressUpdate = jest.fn((_p, _t, _m) => { return })
         const lines = ['first line', '1', 'total 10', '3', 'Some string', '4 A', '5', '9 B', '10 D', 'We are done!']
         const t = task.run(new echo({ lineHandlers: lineMatcher }), { args: [lines.join('\n')] })
         t.on('progressUpdate', progressUpdate)

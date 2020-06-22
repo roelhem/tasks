@@ -1,6 +1,6 @@
 import ChildProcessTaskTemplate, {
     Options as ChildProcessTaskOptions,
-    ProcessOptions as ChildProcessTaskProcessOptions,
+    ChildProcessOptions as ChildProcessTaskProcessOptions,
     ChildProcessTaskResult,
     ChildProcessTaskArgs,
 } from './ChildProcessTaskTemplate'
@@ -117,15 +117,6 @@ export default abstract class SpawnProcessTaskTemplate<
                 } as SpawnProcessTaskMethods<RData, SpawnProcessOptions, PMessage>
             )
         }
-    }
-
-    protected static createSimple(command: string,
-                                  defaultOptions: SpawnProcessOptions = {},
-                                  methods: Partial<SpawnProcessTaskMethods> = {}): SpawnProcessTaskConstructor {
-        return SpawnProcessTaskTemplate.createFull(command, defaultOptions, {
-            getInterruptionResult: async () => undefined,
-            ...methods,
-        })
     }
 
     protected static createFull<

@@ -1,11 +1,11 @@
-import {ChildProcessTaskArgs, ChildProcessTaskResult, ProcessOptions} from '../templates/ChildProcessTaskTemplate'
+import {ChildProcessTaskArgs, ChildProcessTaskResult, ChildProcessOptions} from '../templates/ChildProcessTaskTemplate'
 import TaskContext from './TaskContext'
 import {ChildProcess} from 'child_process'
 import {Task} from '../Task'
 
 export type ChildProcessTask<
     RData extends {} = {},
-    POptions extends ProcessOptions = ProcessOptions,
+    POptions extends ChildProcessOptions = ChildProcessOptions,
     PMessage = string,
     IResult = any
     > = Task<ChildProcessTaskResult<RData>, ChildProcessTaskArgs<POptions>, PMessage, IResult> & {
@@ -14,7 +14,7 @@ export type ChildProcessTask<
 
 export default class ChildProcessTaskContext<
     RData extends {} = {},
-    POptions extends ProcessOptions = ProcessOptions,
+    POptions extends ChildProcessOptions = ChildProcessOptions,
     PMessage = string,
     IResult = any
     > extends TaskContext<ChildProcessTaskResult<RData>, ChildProcessTaskArgs<POptions>, PMessage, IResult> {

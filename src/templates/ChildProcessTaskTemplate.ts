@@ -1,13 +1,12 @@
 import {ChildProcess, CommonOptions, SendHandle, Serializable} from 'child_process'
 import {NamedTaskProvider, TaskInterruptionFlag} from '../types'
 import TaskContext from '../utils/TaskContext'
-import {ArgArray, argAsArray, LineMatcher, mergeDefaultProps} from '../utils'
+import {ArgArray, argAsArray, LineMatcher, mergeDefaultProps, createWritableManager, WritableManager} from '../utils'
 import * as readline from 'readline'
 import {Readable, Writable} from 'stream'
-import {createWritableManager, WritableManager} from '../utils/WritableManager'
 import ChildProcessTaskContext from '../utils/ChildProcessTaskContext'
 
-export interface ProcessOptions extends CommonOptions {
+export interface ChildProcessOptions extends CommonOptions {
     args?: string[]
     defaultKillSignal?: NodeJS.Signals | number
 }
@@ -65,7 +64,7 @@ export type StreamOptions = Partial<Record<ChildProcessWritableStream, WritableS
 
 export type LineHandler<
     RData extends {} = {},
-    POptions extends ProcessOptions = ProcessOptions,
+    POptions extends ChildProcessOptions = ChildProcessOptions,
     PMessage = string,
     IResult = any> = (this: ChildProcessTaskTemplate<RData, POptions, PMessage, IResult>,
                       context: ChildProcessTaskContext<RData, POptions, PMessage, IResult>,
@@ -73,13 +72,13 @@ export type LineHandler<
                       line: string) => void
 export type LineHandlerDefinition<
     RData extends {} = {},
-    POptions extends ProcessOptions = ProcessOptions,
+    POptions extends ChildProcessOptions = ChildProcessOptions,
     PMessage = string,
     IResult = any> = LineHandler<RData, POptions, PMessage, IResult>|LineMatcher<RData, POptions, PMessage, IResult>
 
 export interface Options<
     RData extends {} = {},
-    POptions extends ProcessOptions = ProcessOptions,
+    POptions extends ChildProcessOptions = ChildProcessOptions,
     PMessage = string,
     IResult = any
     > {
@@ -93,11 +92,11 @@ export interface Options<
     lineHandlers?: ArgArray<LineHandlerDefinition<RData, POptions, PMessage, IResult>>
 }
 
-export type ChildProcessTaskArgs<POptions extends ProcessOptions = ProcessOptions> = [Partial<POptions>?, Hooks?]
+export type ChildProcessTaskArgs<POptions extends ChildProcessOptions = ChildProcessOptions> = [Partial<POptions>?, Hooks?]
 
 export default abstract class ChildProcessTaskTemplate<
         RData extends {} = {},
-        POptions extends ProcessOptions = ProcessOptions,
+        POptions extends ChildProcessOptions = ChildProcessOptions,
         PMessage = string,
         IResult = any
     > implements NamedTaskProvider<ChildProcessTaskResult<RData>, ChildProcessTaskArgs<POptions>, PMessage, IResult> {
