@@ -1,10 +1,11 @@
-import {ChildProcess, CommonOptions, SendHandle, Serializable} from 'child_process'
+import {ChildProcess, CommonOptions} from 'child_process'
 import {NamedTaskProvider, TaskInterruptionFlag} from '../types'
 import TaskContext from '../utils/TaskContext'
 import {ArgArray, argAsArray, LineMatcher, mergeDefaultProps, createWritableManager, WritableManager} from '../utils'
 import * as readline from 'readline'
 import {Readable, Writable} from 'stream'
 import ChildProcessTaskContext from '../utils/ChildProcessTaskContext'
+import * as net from 'net'
 
 export interface ChildProcessOptions extends CommonOptions {
     args?: string[]
@@ -39,7 +40,7 @@ export interface Hooks {
     onDisconnect?: () => void,
     onError?: (error: Error) => void,
     onExit?: (code: number|null, signal: NodeJS.Signals|null) => void,
-    onMessage?: (message: Serializable, sendHandle: SendHandle) => void,
+    onMessage?: (message: any, sendHandle: net.Socket | net.Server) => void,
     onData?: StreamHook<(chunk: Buffer | string) => void, ChildProcessReadableStream>
     onLine?: StreamHook<(line: string) => void, ChildProcessReadableStream>
     onSendAvailable?: StreamHook<(send: WritableManager) => void, ChildProcessWritableStream>

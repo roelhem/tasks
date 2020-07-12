@@ -534,7 +534,12 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
 
         // Listen to subProcess update
         result.on('progressUpdate', (progress, progressTotal, progressMessage) => {
-            this.emit('subProgressUpdate', progress, progressTotal, progressMessage)
+            this.emit('subProgressUpdate',
+                progress,
+                progressTotal,
+                progressMessage,
+                (result as unknown) as SubTask<unknown, unknown[], PMessage, IResult>
+            )
         })
 
         // Add it to the subTasks array.
@@ -823,9 +828,12 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     addListener(event: 'progressUpdate', listener: (progress: number,
                                                     progressTotal?: number,
                                                     progressMessage?: PMessage) => void): this
-    addListener(event: 'subProgressUpdate', listener: (progress: number,
-                                                       progressTotal?: number,
-                                                       progressMessage?: PMessage) => void): this
+    addListener(event: 'subProgressUpdate', listener: (
+        progress: number,
+        progressTotal?: number,
+        progressMessage?: PMessage,
+        subTask?: SubTask<unknown, unknown[], PMessage, IResult>
+    ) => void): this
     addListener(event: string|symbol, listener: ((...args: any[]) => void)|((...args: TArgs) => void)): this {
         return super.addListener(event, listener as ((...args: any[]) => void))
     }
@@ -838,9 +846,12 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     on(event: 'progressUpdate', listener: (progress: number,
                                            progressTotal?: number,
                                            progressMessage?: PMessage) => void): this
-    on(event: 'subProgressUpdate', listener: (progress: number,
-                                              progressTotal?: number,
-                                              progressMessage?: PMessage) => void): this
+    on(event: 'subProgressUpdate', listener: (
+        progress: number,
+        progressTotal?: number,
+        progressMessage?: PMessage,
+        subTask?: SubTask<unknown, unknown[], PMessage, IResult>
+    ) => void): this
     on(event: string|symbol,    listener: ((...args: any[]) => void)|((...args: TArgs) => void)): this {
         return super.on(event, listener as ((...args: any[]) => void))
     }
@@ -853,9 +864,12 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     once(event: 'progressUpdate', listener: (progress: number,
                                              progressTotal?: number,
                                              progressMessage?: PMessage) => void): this
-    once(event: 'subProgressUpdate', listener: (progress: number,
-                                                progressTotal?: number,
-                                                progressMessage?: PMessage) => void): this
+    once(event: 'subProgressUpdate', listener: (
+        progress: number,
+        progressTotal?: number,
+        progressMessage?: PMessage,
+        subTask?: SubTask<unknown, unknown[], PMessage, IResult>
+    ) => void): this
     once(event: string|symbol,    listener: ((...args: any[]) => void)|((...args: TArgs) => void)): this {
         return super.once(event, listener as ((...args: any[]) => void))
     }
@@ -868,9 +882,12 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     removeListener(event: 'progressUpdate', listener: (progress: number,
                                                        progressTotal?: number,
                                                        progressMessage?: PMessage) => void): this
-    removeListener(event: 'subProgressUpdate', listener: (progress: number,
-                                                          progressTotal?: number,
-                                                          progressMessage?: PMessage) => void): this
+    removeListener(event: 'subProgressUpdate', listener: (
+        progress: number,
+        progressTotal?: number,
+        progressMessage?: PMessage,
+        subTask?: SubTask<unknown, unknown[], PMessage, IResult>
+    ) => void): this
     removeListener(event: string|symbol,    listener: ((...args: any[]) => void)|((...args: TArgs) => void)): this {
         return super.removeListener(event, listener as ((...args: any[]) => void))
     }
@@ -883,9 +900,12 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     off(event: 'progressUpdate', listener: (progress: number,
                                             progressTotal?: number,
                                             progressMessage?: PMessage) => void): this
-    off(event: 'subProgressUpdate', listener: (progress: number,
-                                               progressTotal?: number,
-                                               progressMessage?: PMessage) => void): this
+    off(event: 'subProgressUpdate', listener: (
+        progress: number,
+        progressTotal?: number,
+        progressMessage?: PMessage,
+        subTask?: SubTask<unknown, unknown[], PMessage, IResult>
+    ) => void): this
     off(event: string|symbol,    listener: ((...args: any[]) => void)|((...args: TArgs) => void)): this {
         return super.off(event, listener as ((...args: any[]) => void))
     }
@@ -929,7 +949,10 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     emit(event: 'interrupted',    interruptionResult: IResult): boolean
     emit(event: 'stateChange',    state: TaskState, previousState: TaskState): boolean
     emit(event: 'progressUpdate', progress: number, progressTotal?: number, progressMessage?: PMessage): boolean
-    emit(event: 'subProgressUpdate', progress: number, progressTotal?: number, progressMessage?: PMessage): boolean
+    emit(event: 'subProgressUpdate', progress: number,
+                                     progressTotal?: number,
+                                     progressMessage?: PMessage,
+                                     subTask?: SubTask<unknown, unknown[], PMessage, IResult>): boolean
     emit(event: string|symbol,    ...args: any[]|TArgs): boolean {
         return super.emit(event, ...args)
     }
@@ -953,9 +976,12 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     prependListener(event: 'progressUpdate', listener: (progress: number,
                                                         progressTotal?: number,
                                                         progressMessage?: PMessage) => void): this
-    prependListener(event: 'subProgressUpdate', listener: (progress: number,
-                                                           progressTotal?: number,
-                                                           progressMessage?: PMessage) => void): this
+    prependListener(event: 'subProgressUpdate', listener: (
+        progress: number,
+        progressTotal?: number,
+        progressMessage?: PMessage,
+        subTask?: SubTask<unknown, unknown[], PMessage, IResult>
+    ) => void): this
     prependListener(event: string|symbol, listener: ((...args: any[]) => void)|((...args: TArgs) => void)): this {
         return super.prependListener(event, listener as ((...args: any[]) => void))
     }
@@ -968,9 +994,12 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     prependOnceListener(event: 'progressUpdate', listener: (progress: number,
                                                             progressTotal?: number,
                                                             progressMessage?: PMessage) => void): this
-    prependOnceListener(event: 'subProgressUpdate', listener: (progress: number,
-                                                               progressTotal?: number,
-                                                               progressMessage?: PMessage) => void): this
+    prependOnceListener(event: 'subProgressUpdate', listener: (
+        progress: number,
+        progressTotal?: number,
+        progressMessage?: PMessage,
+        subTask?: SubTask<unknown, unknown[], PMessage, IResult>
+    ) => void): this
     prependOnceListener(event: string|symbol, listener: ((...args: any[]) => void)|((...args: TArgs) => void)): this {
         return super.prependOnceListener(event, listener as ((...args: any[]) => void))
     }
