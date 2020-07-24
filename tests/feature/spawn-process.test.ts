@@ -1,5 +1,4 @@
 import task, {SpawnProcessTaskTemplate} from '../../src'
-import {SendHandle, Serializable} from 'child_process'
 import {WritableManager} from '../../src/utils'
 import {Hooks} from '../../src/templates/ChildProcessTaskTemplate'
 import {LineMatcher} from '../../src/utils'
@@ -19,7 +18,7 @@ function createMockHooks(name: string = '', log: boolean = false): Hooks {
         onExit: jest.fn((code: number|null, signal: NodeJS.Signals|null) => {
             if(log) { console.log(prefix, 'EXIT', code, signal) }
         }),
-        onMessage: jest.fn((message: Serializable, sendHandle: SendHandle) => {
+        onMessage: jest.fn((message: any, sendHandle: any) => {
             if(log) { console.log(prefix, 'MESSAGE', message, sendHandle) }
         }),
         onData: jest.fn((stream: string, chunk: string|Buffer) => {
@@ -30,7 +29,7 @@ function createMockHooks(name: string = '', log: boolean = false): Hooks {
         }),
         onSendAvailable: jest.fn((stream: string, send: WritableManager) => {
             if(log) { console.log(prefix, `SEND AVAILABLE FROM '${stream}': `, send) }
-        })
+        }),
     }
 }
 
@@ -45,7 +44,7 @@ describe('Usage with Spawn - ChildProcesses', () => {
         const hooks = createMockHooks('Echo Task')
 
         await task.run(a, {
-            args: ['\nargFromTask', '\nlastArg']
+            args: ['\nargFromTask', '\nlastArg'],
         }, hooks)
 
         expect(hooks.onLine).toBeCalledWith('stdout', 'prefixArg ')
@@ -66,7 +65,7 @@ describe('Usage with Spawn - ChildProcesses', () => {
         const a = new echo({ lineHandlers: lineMatcher })
 
         await task.run(a, {
-            args: ['Ab\nAc\nD\nA\ndA']
+            args: ['Ab\nAc\nD\nA\ndA'],
         })
 
         expect(startsWithA).toBeCalledTimes(3)
@@ -91,7 +90,7 @@ describe('Usage with Spawn - ChildProcesses', () => {
             inheritEnv: false,
             extraEnv: { PATH: process.env.PATH, TEST_ENV_A: 'A', TEST_ENV_B: undefined },
             prefixArgs: ['-e'],
-            lineHandlers: handleLine
+            lineHandlers: handleLine,
         })
         const code = `
             Object.entries(process.env).forEach(function (value) {
@@ -112,7 +111,7 @@ describe('Usage with Spawn - ChildProcesses', () => {
         })
         const a = new node({
             prefixArgs: ['-e'],
-            lineHandlers: handleLine
+            lineHandlers: handleLine,
         })
         const code = `
             process.argv.forEach(function (value) {
@@ -138,7 +137,7 @@ describe('Usage with Spawn - ChildProcesses', () => {
         const nodeExecute = new node({
             prefixArgs: ['-e'],
             extraEnv: {MY_A: 'a', MY_C:'0'},
-            lineHandlers: lineMatcher
+            lineHandlers: lineMatcher,
         })
         const code = `
             Object.entries(process.env).forEach(function (value) {
@@ -190,7 +189,7 @@ describe('Usage with Spawn - ChildProcesses', () => {
         lineMatcher.add(/^B/, (context, match) => {
             context.setData({
                 b: (context.getData().b || 0) + 1,
-                lastB: match.line
+                lastB: match.line,
             })
         })
 
