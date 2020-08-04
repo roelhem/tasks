@@ -34,13 +34,27 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     // ---- STATIC METHODS ---------------------------------------------------------------------------------------- //
     // ------------------------------------------------------------------------------------------------------------ //
 
+    static readonly buildInEvents = [
+        'started' as const,
+        'succeeded' as const,
+        'failed' as const,
+        'interrupted' as const,
+        'finished' as const,
+        'stateChange' as const,
+        'newCustomEvent' as const,
+        'progressUpdate' as const,
+        'subProgressUpdate' as const,
+    ]
 
+    static removeListenersWhenFinished: boolean = true
 
     // ------------------------------------------------------------------------------------------------------------ //
     // ---- INITIALISATION ---------------------------------------------------------------------------------------- //
     // ------------------------------------------------------------------------------------------------------------ //
 
     readonly [Symbol.toStringTag]: string
+
+    readonly customEvents: (string|symbol)[] = []
 
     /**
      * The name of this task.
@@ -249,21 +263,28 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
         this._result = result
         this.emit('succeeded', result)
         this.finishProgress()
-        this.emit('finished', TaskState.SUCCEEDED)
+        this.finish()
     }
 
     protected setFailure(reason: any) {
         this.changeState(TaskState.FAILED)
         this._failureReason = reason
         this.emit('failed', reason)
-        this.emit('finished', TaskState.FAILED)
+        this.finish()
     }
 
     protected setInterrupt(interruptResult: IResult) {
         this.changeState(TaskState.INTERRUPTED)
         this._interruptionResult = interruptResult
         this.emit('interrupted', interruptResult)
-        this.emit('finished', TaskState.INTERRUPTED)
+        this.finish()
+    }
+
+    protected finish() {
+        this.emit('finished', this.state)
+        if(Task.removeListenersWhenFinished) {
+            this.removeAllListeners()
+        }
     }
 
     // ------------------------------------------------------------------------------------------------------------ //
@@ -537,16 +558,19 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
         this.inheritProgress(result, progressInheritance)
 
         // Listen to subProcess update
-        const subProgressListener = (progress: number, progressTotal?: number, progressMessage?: PMessage) => {
+        result.on('progressUpdate', (progress, progressTotal, progressMessage) => {
             this.emit('subProgressUpdate',
                 progress,
                 progressTotal,
                 progressMessage,
                 (result as unknown) as SubTask<unknown, unknown[], PMessage, IResult>
             )
-        }
-        result.on('progressUpdate', subProgressListener)
-        result.once('finished', () => result.off('progressUpdate', subProgressListener))
+        })
+
+        // Inherit custom events
+        result.on('newCustomEvent', (event) => {
+            result.on(event, (...args: any[]) => this.emit(event, ...args))
+        })
 
         // Add it to the subTasks array.
         this._subTasks.push((result as unknown) as SubTask<any, any[], PMessage, IResult>)
@@ -585,7 +609,7 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
             return
         }
 
-        const progressListener = (progress: number, progressTotal?: number, progressMessage?: PMessage) => {
+        task.on('progressUpdate', (progress, progressTotal, progressMessage) => {
             if (offset === undefined) {
                 offset = this.currentProgress
             }
@@ -606,14 +630,10 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
                         inheritMessages ? progressMessage: undefined)
                 }
             }
-        }
-        task.on('progressUpdate', progressListener)
-        task.once('finished', () => task.off('progressUpdate', progressListener))
+        })
 
         for(const event of events) {
-            const eventListener = (...args: any[]) => this.emit(event, ...args)
-            task.on(event, eventListener)
-            task.once('finished', () => task.off(event, eventListener))
+            task.on(event, (...args: any[]) => this.emit(event, ...args))
         }
     }
 
@@ -835,6 +855,42 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     }
 
     // ------------------------------------------------------------------------------------------------------------ //
+    // ---- EVENTS ------------------------------------------------------------------------------------------------ //
+    // ------------------------------------------------------------------------------------------------------------ //
+
+    /**
+     * Returns a list of all the events that this task could emit.
+     */
+    get events(): (string|symbol)[] {
+        return [...Task.buildInEvents, ...this.customEvents]
+    }
+
+    /**
+     * Returns whether or not the provided event is a new event.
+     *
+     * @param event The key of the event for which you want to check.
+     */
+    eventIsNew(event: string|symbol): boolean {
+        return !Task.buildInEvents.includes(event as any) && !this.customEvents.includes(event as any)
+    }
+
+    /**
+     * Registers a new event if it isn't registered yet.
+     *
+     * When the provided event isn't yet in the `Task.buildInEvents` or `this.customEvents`, it will be added to
+     * the custom events and a `newCustomEvent` event will be emitted.
+     *
+     * @param event The event that you want to register.
+     */
+    registerEvent(event: string|symbol): this {
+        if(this.eventIsNew(event)) {
+            this.customEvents.push(event)
+            super.emit('newCustomEvent', event)
+        }
+        return this
+    }
+
+    // ------------------------------------------------------------------------------------------------------------ //
     // ---- IMPLEMENTING: EventEmitter ---------------------------------------------------------------------------- //
     // ------------------------------------------------------------------------------------------------------------ //
 
@@ -844,6 +900,7 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     addListener(event: 'interrupted',    listener: (interruptionResult: IResult) => void): this
     addListener(event: 'finished',       listener: (state: TaskState) => void): this
     addListener(event: 'stateChange',    listener: (state: TaskState, previousState: TaskState) => void): this
+    addListener(event: 'newCustomEvent', listener: (event: string|symbol) => void): this
     addListener(event: 'progressUpdate', listener: (progress: number,
                                                     progressTotal?: number,
                                                     progressMessage?: PMessage) => void): this
@@ -864,6 +921,7 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     on(event: 'interrupted',    listener: (interruptionResult: IResult) => void): this
     on(event: 'finished',       listener: (state: TaskState) => void): this
     on(event: 'stateChange',    listener: (state: TaskState, previousState: TaskState) => void): this
+    on(event: 'newCustomEvent', listener: (event: string|symbol) => void): this
     on(event: 'progressUpdate', listener: (progress: number,
                                            progressTotal?: number,
                                            progressMessage?: PMessage) => void): this
@@ -884,6 +942,7 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     once(event: 'interrupted',    listener: (interruptionResult: IResult) => void): this
     once(event: 'finished',       listener: (state: TaskState) => void): this
     once(event: 'stateChange',    listener: (state: TaskState, previousState: TaskState) => void): this
+    once(event: 'newCustomEvent', listener: (event: string|symbol) => void): this
     once(event: 'progressUpdate', listener: (progress: number,
                                              progressTotal?: number,
                                              progressMessage?: PMessage) => void): this
@@ -904,6 +963,7 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     removeListener(event: 'interrupted',    listener: (interruptionResult: IResult) => void): this
     removeListener(event: 'finished',       listener: (state: TaskState) => void): this
     removeListener(event: 'stateChange',    listener: (state: TaskState, previousState: TaskState) => void): this
+    removeListener(event: 'newCustomEvent', listener: (event: string|symbol) => void): this
     removeListener(event: 'progressUpdate', listener: (progress: number,
                                                        progressTotal?: number,
                                                        progressMessage?: PMessage) => void): this
@@ -924,6 +984,7 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     off(event: 'interrupted',    listener: (interruptionResult: IResult) => void): this
     off(event: 'finished',       listener: (state: TaskState) => void): this
     off(event: 'stateChange',    listener: (state: TaskState, previousState: TaskState) => void): this
+    off(event: 'newCustomEvent', listener: (event: string|symbol) => void): this
     off(event: 'progressUpdate', listener: (progress: number,
                                             progressTotal?: number,
                                             progressMessage?: PMessage) => void): this
@@ -944,6 +1005,7 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     removeAllListeners(event?: 'interrupted'): this
     removeAllListeners(event?: 'finished'): this
     removeAllListeners(event?: 'stateChange'): this
+    removeAllListeners(event?: 'newCustomEvent'): this
     removeAllListeners(event?: 'progressUpdate'): this
     removeAllListeners(event?: 'subProgressUpdate'): this
     removeAllListeners(event?: string|symbol): this
@@ -957,6 +1019,7 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     listeners(event: 'interrupted'): Function[]
     listeners(event: 'finished'): Function[]
     listeners(event: 'stateChange'): Function[]
+    listeners(event: 'newCustomEvent'): Function[]
     listeners(event: 'progressUpdate'): Function[]
     listeners(event: 'subProgressUpdate'): Function[]
     listeners(event: string | symbol): Function[]
@@ -970,6 +1033,7 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     rawListeners(event: 'interrupted'): Function[]
     rawListeners(event: 'finished'): Function[]
     rawListeners(event: 'stateChange'): Function[]
+    rawListeners(event: 'newCustomEvent'): Function[]
     rawListeners(event: 'progressUpdate'): Function[]
     rawListeners(event: 'subProgressUpdate'): Function[]
     rawListeners(event: string | symbol): Function[]
@@ -983,6 +1047,7 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     emit(event: 'interrupted',    interruptionResult: IResult): boolean
     emit(event: 'finished',       state: TaskState): boolean
     emit(event: 'stateChange',    state: TaskState, previousState: TaskState): boolean
+    emit(event: 'newCustomEvent', newEvent: string|symbol): boolean
     emit(event: 'progressUpdate', progress: number, progressTotal?: number, progressMessage?: PMessage): boolean
     emit(event: 'subProgressUpdate', progress: number,
                                      progressTotal?: number,
@@ -990,6 +1055,7 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
                                      subTask?: SubTask<unknown, unknown[], PMessage, IResult>): boolean
     emit(event: string|symbol,    ...args: any[]|TArgs): boolean
     emit(event: string|symbol,    ...args: any[]|TArgs): boolean {
+        this.registerEvent(event)
         return super.emit(event, ...args)
     }
 
@@ -999,6 +1065,7 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     listenerCount(event: 'interrupted'): number
     listenerCount(event: 'finished'): number
     listenerCount(event: 'stateChange'): number
+    listenerCount(event: 'newCustomEvent'): number
     listenerCount(event: 'progressUpdate'): number
     listenerCount(event: 'subProgressUpdate'): number
     listenerCount(event: string | symbol): number
@@ -1011,6 +1078,7 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     prependListener(event: 'failed',         listener: (reason: any) => void): this
     prependListener(event: 'interrupted',    listener: (interruptionResult: IResult) => void): this
     prependListener(event: 'finished',       listener: (state: TaskState) => void): this
+    prependListener(event: 'newCustomEvent', listener: (event: string|symbol) => void): this
     prependListener(event: 'stateChange',    listener: (state: TaskState, previousState: TaskState) => void): this
     prependListener(event: 'progressUpdate', listener: (progress: number,
                                                         progressTotal?: number,
@@ -1031,6 +1099,7 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     prependOnceListener(event: 'failed',         listener: (reason: any) => void): this
     prependOnceListener(event: 'interrupted',    listener: (interruptionResult: IResult) => void): this
     prependOnceListener(event: 'finished',       listener: (state: TaskState) => void): this
+    prependOnceListener(event: 'newCustomEvent', listener: (event: string|symbol) => void): this
     prependOnceListener(event: 'stateChange',    listener: (state: TaskState, previousState: TaskState) => void): this
     prependOnceListener(event: 'progressUpdate', listener: (progress: number,
                                                             progressTotal?: number,
