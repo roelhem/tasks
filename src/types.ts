@@ -65,6 +65,7 @@ export interface ProgressInheritanceOptions {
     scale?: number
     inheritMessages?: boolean
     inheritProgress: true
+    events?: (string|symbol)[]
 }
 
 export type ProgressInheritance = ProgressInheritanceScale|ProgressInheritanceOffset

@@ -46,8 +46,9 @@ export default class TaskContext<TResult = void, TArgs extends any[] = [], PMess
      *
      * @param reason The reason for the error. Is an `Error`-object in most cases.
      */
-    reject(reason: any): void {
+    reject(reason: any): this {
         this.task.reject(reason)
+        return this
     }
 
     /**
@@ -55,8 +56,9 @@ export default class TaskContext<TResult = void, TArgs extends any[] = [], PMess
      *
      * @param result The result of the task
      */
-    resolve(result: TResult): void {
+    resolve(result: TResult): this {
         this.task.resolve(result)
+        return this
     }
 
     /**
@@ -64,8 +66,9 @@ export default class TaskContext<TResult = void, TArgs extends any[] = [], PMess
      *
      * @param interruptResult A description of the point where the task was interrupted.
      */
-    interrupt(interruptResult: IResult): void {
+    interrupt(interruptResult: IResult): this {
         this.task.softInterrupt(interruptResult)
+        return this
     }
 
     // ------------------------------------------------------------------------------------------------------------ //
@@ -78,31 +81,45 @@ export default class TaskContext<TResult = void, TArgs extends any[] = [], PMess
      *
      * @param interrupter The interrupter method.
      */
-    setInterrupter(interrupter: TaskInterrupter<IResult>): void {
+    setInterrupter(interrupter: TaskInterrupter<IResult>): this {
         this.task.setInterrupter(interrupter)
+        return this
     }
 
     // ------------------------------------------------------------------------------------------------------------ //
     // ---- PROGRESS CONTROL -------------------------------------------------------------------------------------- //
     // ------------------------------------------------------------------------------------------------------------ //
 
-    setProgressTotal(total: number, message?: PMessage): void {
+    setProgressTotal(total: number, message?: PMessage): this {
         this.task.changeProgress(undefined, total, message)
+        return this
     }
-    setProgressMessage(message: PMessage): void {
+    setProgressMessage(message: PMessage): this {
         this.task.changeProgress(undefined, undefined, message)
+        return this
     }
-    setProgress(progress: number, total?: number, message?: PMessage): void {
+    setProgress(progress: number, total?: number, message?: PMessage): this {
         this.task.changeProgress(progress, total, message)
+        return this
     }
 
-    incrementProgress(amount: number, total?: number, message?: PMessage): void {
+    incrementProgress(amount: number, total?: number, message?: PMessage): this {
         const prevCurrent = this.task.currentProgress
         const nextCurrent = prevCurrent + amount
         const proposedTotal = total || this.task.totalProgress
         const nextTotal = proposedTotal === undefined ? undefined :
                          (proposedTotal < nextCurrent ? nextCurrent : proposedTotal)
         this.task.changeProgress(nextCurrent, nextTotal, message)
+        return this
+    }
+
+    // ------------------------------------------------------------------------------------------------------------ //
+    // ---- EMITTING CONTROL -------------------------------------------------------------------------------------- //
+    // ------------------------------------------------------------------------------------------------------------ //
+
+    emit(event: string, ...args: any[]): this {
+        this.task.emit(event, ...args)
+        return this
     }
 
     // ------------------------------------------------------------------------------------------------------------ //

@@ -11,8 +11,7 @@
     "lint-fix": "tslint -p tsconfig.json --fix",
     "refresh": "rm -rf ./node_modules ./package-lock.json && npm install",
     "prepare": "npm run build",
-    "prepublishOnly": "npm test && npm run lint",
-    "preversion": "npm run lint",
+    "prepublishOnly": "npm test",
     "version": "git add -A src",
     "postversion": "git push && git push --tags"
   },
@@ -40,5 +39,7 @@
     "tslint": "^6.1.2",
     "typescript": "^3.9.7"
   },
-  "dependencies": {}
+  "dependencies": {
+    "tslib": "^2.0.0"
+  }
 }
