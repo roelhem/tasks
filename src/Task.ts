@@ -248,8 +248,8 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
         this.changeState(TaskState.SUCCEEDED)
         this._result = result
         this.emit('succeeded', result)
-        this.emit('finished', TaskState.SUCCEEDED)
         this.finishProgress()
+        this.emit('finished', TaskState.SUCCEEDED)
     }
 
     protected setFailure(reason: any) {
