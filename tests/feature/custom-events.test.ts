@@ -29,6 +29,24 @@ describe('Emitting custom events', () => {
         expect(l).toBeCalledWith(2, 'a')
     })
 
+    test('From sub sub Task', async () => {
+        const fa: TaskFunction = async (context) => {
+            context.emit('A', 3, 'aa')
+        }
+        const fb: TaskFunction = async (context) => {
+            await context.runSubTask(fa)
+        }
+        const fc: TaskFunction = async (context) => {
+            await context.runSubTask(fb)
+        }
+        const la = jest.fn((_num) => { return })
+        const t = task.create(fb).on('A', la)
+        expect(la).toBeCalledTimes(0)
+        await t.run()
+        expect(la).toBeCalledTimes(1)
+        expect(la).toBeCalledWith(3, 'aa')
+    })
+
     test('Copy subTask events', async () => {
         const fa: TaskFunction = async (context) => {
             context.emit('A', 2, 'a')
