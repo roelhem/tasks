@@ -21,7 +21,7 @@ export function isTaskFunction<TResult = any, TArgs extends any[] = any[], PMess
 export function isTaskProvider<TResult = any, TArgs extends any[] = any[], PMessage = any, IResult = any>(arg: any):
     arg is TaskProvider<TResult, TArgs, PMessage, IResult> {
     return typeof arg === 'object' && arg !== null
-        && 'task' in arg
+        && arg.task !== undefined
         && isTaskFunction<TResult, TArgs, PMessage, IResult>(arg.task)
 }
 
