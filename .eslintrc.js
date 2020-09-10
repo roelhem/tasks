@@ -153,7 +153,8 @@ module.exports = {
             "error",
             {
                 "ignorePattern": "^import [^,]+ from |^export  |// |( = ').*('$)",
-                "code": 120
+                "code": 120,
+                "ignoreComments": true,
             }
         ],
         "new-parens": "error",

@@ -90,7 +90,7 @@ export class Task<TResult = any, TArgs extends any[] = [], PMessage = any, IResu
     /**
      * A function that will be called on the [[Task]] when the task is initialized.
      */
-    taskSetup?: (task: Task<TResult, TArgs, PMessage, IResult>) => void
+    taskSetup: (task: Task<TResult, TArgs, PMessage, IResult>) => void
 
     /**
      * Reference to the definition of this task.
@@ -205,10 +205,8 @@ export class Task<TResult = any, TArgs extends any[] = [], PMessage = any, IResu
         })
 
         // Calling the setup function if exists.
-        this.taskSetup = taskDefinition.taskSetup
-        if('taskSetup' in taskDefinition && typeof taskDefinition.taskSetup === 'function') {
-            taskDefinition.taskSetup(this)
-        }
+        this.taskSetup = (task) => taskDefinition.taskSetup ? taskDefinition.taskSetup(task) : undefined
+        this.taskSetup(this)
     }
 
     // ------------------------------------------------------------------------------------------------------------ //
@@ -671,7 +669,7 @@ export class Task<TResult = any, TArgs extends any[] = [], PMessage = any, IResu
 
     addSubTask<SubTResult, SubTArgs extends any[]>(
         task: Task<SubTResult, SubTArgs, PMessage, IResult>,
-        progressInheritance?: ProgressInheritance,
+        progressInheritance?: ProgressInheritance
     ): Task<SubTResult, SubTArgs, PMessage, IResult> {
 
         if(task.state !== TaskState.READY) {
@@ -691,7 +689,7 @@ export class Task<TResult = any, TArgs extends any[] = [], PMessage = any, IResu
                 progress,
                 progressTotal,
                 progressMessage,
-                task,
+                task
             )
         })
 
@@ -834,7 +832,7 @@ export class Task<TResult = any, TArgs extends any[] = [], PMessage = any, IResu
     ): CleanupTask<TResult, TArgs, IResult>
     addCleanupTask(
         arg0: string|CleanupTaskDefinition<TResult, TArgs, IResult>,
-        arg1?: CleanupTaskDefinition<TResult, TArgs, IResult>,
+        arg1?: CleanupTaskDefinition<TResult, TArgs, IResult>
     ): CleanupTask<TResult, TArgs, IResult> {
         // Get the parameters
         const taskDefinition = typeof arg0 === 'string' ? arg1 : arg0
@@ -1112,7 +1110,7 @@ export class Task<TResult = any, TArgs extends any[] = [], PMessage = any, IResu
         return this
     }
 
-    eventNames(): Array<keyof TaskEvents | string | symbol> {
+    eventNames(): (keyof TaskEvents | string | symbol)[] {
         return this.eventEmitter.eventNames()
     }
 

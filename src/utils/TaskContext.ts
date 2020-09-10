@@ -292,7 +292,7 @@ export default class TaskContext<TResult = void, TArgs extends any[] = [], PMess
     ): CleanupTask<TResult, TArgs, IResult>
     addCleanupTask (
         arg0: CleanupTaskDefinition<TResult, TArgs, IResult>|string,
-        arg1?: CleanupTaskDefinition<TResult, TArgs, IResult>,
+        arg1?: CleanupTaskDefinition<TResult, TArgs, IResult>
     ): CleanupTask<TResult, TArgs, IResult> {
         if(isTaskDefinition(arg0)) {
             return this.task.addCleanupTask(arg0)
@@ -313,8 +313,8 @@ export default class TaskContext<TResult = void, TArgs extends any[] = [], PMess
         arg2?: string|ChildProcessOptions<PData, PMessage, IResult>,
         ...otherArgs: string[]
     ): {
-        childProcess: ChildProcess<PData, PMessage, IResult>,
-        args: string[],
+        childProcess: ChildProcess<PData, PMessage, IResult>
+        args: string[]
         progressInheritance: ProgressInheritance|undefined
     } {
         // Get the arguments

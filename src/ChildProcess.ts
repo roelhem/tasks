@@ -374,7 +374,7 @@ export default class ChildProcess<PData extends {} = {}, PMessage = any, IResult
                             message: `Process exit with non-zero code ${exitCode}`,
                             childProcess: this,
                             code: exitCode,
-                            signal: exitSignal
+                            signal: exitSignal,
                         }))
                     }
                 }
@@ -411,7 +411,7 @@ export default class ChildProcess<PData extends {} = {}, PMessage = any, IResult
     protected initLineHandlers(
         context: ChildProcessContext<PData, PMessage, IResult>,
         stream: ChildProcessReadableStream,
-        readable?: Readable|null,
+        readable?: Readable|null
     ): void {
         // Skip when readable is not defined.
         if(!readable) { return }
@@ -501,10 +501,10 @@ export default class ChildProcess<PData extends {} = {}, PMessage = any, IResult
                     ...this.nodeExecArgv,
                     this.executable,
                     ...this.prependArgs,
-                    ...this.appendArgs
+                    ...this.appendArgs,
                 ] : [
                     ...this.prependArgs,
-                    ...this.appendArgs
+                    ...this.appendArgs,
                 ]
     }
 

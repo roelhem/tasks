@@ -21,7 +21,7 @@ export default class ChildProcessError extends Error implements ExecException {
         stderr?: string
         stdout?: string
     }) {
-        super(options.message);
+        super(options.message)
         const childProcess = options.childProcess
         this.childProcess = childProcess
         this.cwd = options.cwd || (childProcess ? childProcess.cwd : undefined)
