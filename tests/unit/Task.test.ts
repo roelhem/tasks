@@ -6,26 +6,46 @@ import {TriggerableTaskTemplate} from '../../src/templates'
 
 describe('Task', () => {
 
-    test('.[Symbol.toStringTag]', () => {
-        const a = new Task(() => { return })
-        expect(a[Symbol.toStringTag]).toBe(`Task[${DEFAULT_TASK_NAME}]`)
-        expect(a.toString()).toBe(`[object Task[${DEFAULT_TASK_NAME}]]`)
+    describe('constructor', () => {
 
-        const b = new Task('B', () => { return })
-        expect(b[Symbol.toStringTag]).toBe(`Task[B]`)
-        expect(b.toString()).toBe(`[object Task[B]]`)
+        test('Can be constructed', () => {
+            const a = new Task(() => { return })
+            expect(a).toBeInstanceOf(Task)
+        })
 
-        const c = new Task('C', { task: () => { return } })
-        expect(c[Symbol.toStringTag]).toBe(`Task[C]`)
-        expect(c.toString()).toBe(`[object Task[C]]`)
+    })
 
-        const d = new Task({ task: () => { return }, taskName: 'D' })
-        expect(d[Symbol.toStringTag]).toBe(`Task[D]`)
-        expect(d.toString()).toBe(`[object Task[D]]`)
+    describe('.[Symbol.toStringTag]', () => {
 
-        const e = new Task('e', { task: () => { return }, taskName: 'E' })
-        expect(e[Symbol.toStringTag]).toBe(`Task[E:e]`)
-        expect(e.toString()).toBe(`[object Task[E:e]]`)
+        test('For function without a name', () => {
+            const a = new Task(() => { return })
+            expect(a[Symbol.toStringTag]).toBe(`Task[${DEFAULT_TASK_NAME}]`)
+            expect(a.toString()).toBe(`[object Task[${DEFAULT_TASK_NAME}]]`)
+        })
+
+        test('For function with a name', () => {
+            const b = new Task('B', () => { return })
+            expect(b[Symbol.toStringTag]).toBe(`Task[B]`)
+            expect(b.toString()).toBe(`[object Task[B]]`)
+        })
+
+        test('For unnamed provider with a name', () => {
+            const c = new Task('C', { task: () => { return } })
+            expect(c[Symbol.toStringTag]).toBe(`Task[C]`)
+            expect(c.toString()).toBe(`[object Task[C]]`)
+        })
+
+        test('For named provider without a name', () => {
+            const d = new Task({ task: () => { return }, taskName: 'D' })
+            expect(d[Symbol.toStringTag]).toBe(`Task[D]`)
+            expect(d.toString()).toBe(`[object Task[D]]`)
+        })
+
+        test('For named provider with a name', () => {
+            const e = new Task('e', { task: () => { return }, taskName: 'E' })
+            expect(e[Symbol.toStringTag]).toBe(`Task[E:e]`)
+            expect(e.toString()).toBe(`[object Task[E:e]]`)
+        })
     })
 
     test('.name', () => {
@@ -98,29 +118,37 @@ describe('Task', () => {
         expect(e.result).toBe('E')
     })
 
-    test('.interruptionResult', async () => {
-        const a = new Task(async () => { return })
-        expect(a.interruptionResult).toBeUndefined()
-        await a.run()
-        expect(a.interruptionResult).toBeUndefined()
-
-        const b = new Task<void, [], string, number>(context => { context.interrupt(1) })
-        expect(b.interruptionResult).toBeUndefined()
-        await expect(b.run()).rejects.toThrow(TaskInterruptionError)
-        expect(b.interruptionResult).toBe(1)
-
-        const c = new Task(async () => { throw new TaskInterruptionError('C') })
-        await expect(c.run()).rejects.toThrow(TaskInterruptionError)
-        expect(c.interruptionResult).toBe('C')
-
-        const d = new Task(async context => {
-            context.setInterrupter(() => { return 'D' })
+    describe('.interruptionResult', () => {
+        test('Simple task', async () => {
+            const a = new Task(async () => { return })
+            expect(a.interruptionResult).toBeUndefined()
+            await a.run()
+            expect(a.interruptionResult).toBeUndefined()
         })
 
-        d.run().catch()
-        expect(d.interruptionResult).toBeUndefined()
-        await d.interrupt()
-        expect(d.interruptionResult).toBe('D')
+        test('From interrupt call', async () => {
+            const b = new Task<void, [], string, number>(context => { context.interrupt(1) })
+            expect(b.interruptionResult).toBeUndefined()
+            await expect(b.run()).rejects.toThrow(TaskInterruptionError)
+            expect(b.interruptionResult).toBe(1)
+        })
+
+        test('By throwing an TaskInterruptionError', async () => {
+            const c = new Task(async () => { throw new TaskInterruptionError('C') })
+            await expect(c.run()).rejects.toThrow(TaskInterruptionError)
+            expect(c.interruptionResult).toBe('C')
+        })
+
+        test('By calling .interrupt()', async () => {
+            const d = new Task(async context => {
+                context.addInterrupter(() => { return 'D' })
+            })
+
+            d.run().catch()
+            expect(d.interruptionResult).toBeUndefined()
+            await d.interrupt()
+            expect(d.interruptionResult).toBe('D')
+        })
     })
 
     test('.interruptionError', async () => {
@@ -141,7 +169,7 @@ describe('Task', () => {
         expect(c.interruptionError).toHaveProperty('interruptionResult', 'C')
 
         const d = new Task(async context => {
-            context.setInterrupter(() => { return 'D' })
+            context.addInterrupter(() => { return 'D' })
         })
 
         d.run().catch()
@@ -151,7 +179,7 @@ describe('Task', () => {
         expect(d.interruptionError).toHaveProperty('interruptionResult', 'D')
 
         const e = new Task(async context => {
-            context.setInterrupter(() => { return })
+            context.addInterrupter(() => { return })
         })
 
         e.run().catch()

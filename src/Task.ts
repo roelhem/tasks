@@ -1,11 +1,12 @@
 import {
+    ChildProcessEvents,
     CleanupInterruptionResult,
     CleanupProgressMessage,
     CleanupTaskDefinition,
     NamedTaskProvider,
     ProgressInheritance,
-    ProgressInheritanceScale,
     TaskDefinition,
+    TaskEvents,
     TaskFunction,
     TaskInterrupter,
     TaskInterruptionFlag,
@@ -26,24 +27,44 @@ import {DEFAULT_TASK_NAME} from './constants'
 import {EventEmitter} from 'events'
 import TaskInterruptionError, {isTaskInterruptionError} from './TaskInterruptionError'
 
-export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, IResult = any>
-    extends EventEmitter
-    implements Promise<TResult>, NamedTaskProvider<TResult, TArgs, PMessage, IResult> {
+export type CleanupTask<TResult = void, TArgs extends any[] = [], IResult = any> = Task<
+    void,
+    [any|undefined, IResult|undefined, TResult|undefined],
+    CleanupProgressMessage,
+    CleanupInterruptionResult
+>
+
+export class Task<TResult = any, TArgs extends any[] = [], PMessage = any, IResult = any>
+    implements Promise<TResult>, EventEmitter, NamedTaskProvider<TResult, TArgs, PMessage, IResult> {
 
     // ------------------------------------------------------------------------------------------------------------ //
     // ---- STATIC METHODS ---------------------------------------------------------------------------------------- //
     // ------------------------------------------------------------------------------------------------------------ //
 
-    static readonly buildInEvents = [
-        'started' as const,
-        'succeeded' as const,
-        'failed' as const,
-        'interrupted' as const,
-        'finished' as const,
-        'stateChange' as const,
-        'newCustomEvent' as const,
-        'progressUpdate' as const,
-        'subProgressUpdate' as const,
+    static readonly buildInEvents: (keyof TaskEvents|keyof ChildProcessEvents)[] = [
+        'started',
+        'succeeded',
+        'failed',
+        'interrupted',
+        'finished',
+        'stateChange',
+        'newCustomEvent',
+        'progressUpdate',
+        'subProgressUpdate',
+        'cleanupStarted',
+        'cleanupFailed',
+        'cleanupSucceeded',
+        'cleanupFinished',
+        'cleanupInterrupted',
+        'cleanupFinished',
+        'cleanupStateChange',
+        'cleanupProgressUpdate',
+        'close',
+        'disconnect',
+        'exit',
+        'error',
+        'message',
+        'line',
     ]
 
     static removeListenersWhenFinished: boolean = true
@@ -54,7 +75,10 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
 
     readonly [Symbol.toStringTag]: string
 
-    readonly customEvents: (string|symbol)[] = []
+    /**
+     * A list of custom events that this [[Task]] can emit.
+     */
+    readonly customEvents: (string|symbol)[]
 
     /**
      * The name of this task.
@@ -64,36 +88,47 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     name: string
 
     /**
+     * A function that will be called on the [[Task]] when the task is initialized.
+     */
+    taskSetup?: (task: Task<TResult, TArgs, PMessage, IResult>) => void
+
+    /**
      * Reference to the definition of this task.
      */
     protected taskDefinition: TaskDefinition<TResult, TArgs, PMessage, IResult>
 
     /**
-     * The inner promise.
-     */
-    protected promise: Promise<TResult>
-
-    /**
      * The inner reference to the interrupter.
      */
-    protected interrupter?: TaskInterrupter<IResult>
+    protected interrupters: Set<TaskInterrupter<IResult>>
+
+    /**
+     * The inner reference to the EventEmitter.
+     */
+    protected readonly eventEmitter: EventEmitter
 
     /**
      * Inner reference to the state of this task.
      */
-    private _state: TaskState = TaskState.READY
+    private _state: TaskState // = TaskState.READY
 
-    private _currentProgress: number = 0
+    /**
+     * The parent of this [[Task]] if it is a subTask. Will be `null` if this [[Task]] is a rootTask.
+     */
+    protected _parentTask: Task<any, any[], PMessage, IResult>|null
+
+    private _currentProgress: number // = 0
     private _totalProgress?: number
     private _lastProgressMessage?: PMessage
-    private _subTasks: SubTask<any, any[], PMessage, IResult>[] = []
-    private _cleanupTasks: CleanupTask<TResult, TArgs, IResult>[] = []
+    private readonly _subTasks: Task<any, any[], PMessage, IResult>[]
+    private readonly _cleanupTasks: CleanupTask<TResult, TArgs, IResult>[]
+    private readonly _promise: Promise<TResult>
 
     private _args?: TArgs
     private _result?: TResult
     private _failureReason?: any
     private _interruptionResult?: IResult
-    private _cleaned: boolean = false
+    private _cleaned: boolean // = false
 
     /**
      * Creates a new task from a [[TaskDefinition]].
@@ -108,10 +143,24 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
      *        [[NamedTaskProvider]] was given.
      * @param task A [[TaskDefinition]] that describes the task you want to create.
      */
-    constructor(name: string, task: TaskDefinition<TResult, TArgs, PMessage, IResult>) // TYPE 2
+    constructor(name: string,
+                task: TaskDefinition<TResult, TArgs, PMessage, IResult>) // TYPE 2
     constructor(arg0: string|TaskDefinition<TResult, TArgs, PMessage, IResult>,
                 arg1?: TaskDefinition<TResult, TArgs, PMessage, IResult>) {
-        super()
+        // Initialize the EventEmitter
+        this.eventEmitter = new EventEmitter()
+
+        // Set the properties with a static initial value
+        this._parentTask = null
+        this.customEvents = []
+        this._state = TaskState.READY
+        this._currentProgress = 0
+        this._subTasks = []
+        this._cleanupTasks = []
+        this._cleaned = false
+
+        // Initialize the interrupters set
+        this.interrupters = new Set()
 
         // Getting the parameters
         let name: string|undefined
@@ -142,18 +191,24 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
             this.name = DEFAULT_TASK_NAME
         }
 
-        // Setting the toStringTag
-        this[Symbol.toStringTag] = `Task[${this.name}]`
+        // Set the toStringTag.
+        this[Symbol.toStringTag] = `${this.constructor.name}[${this.name}]`
 
-        // Setting the promise
-        this.promise = new Promise<TResult>(((resolve, reject) => {
+        // Initialize the promis
+        this._promise = new Promise((resolve, reject) => {
             this.once('succeeded', (result: TResult) => { resolve(result) })
             this.once('failed', (reason: any) => { reject(reason) })
             this.once('interrupted', (interruptionResult: IResult) => {
                 const errorMessage = `Task '${this.name}' was interrupted.`
                 reject(new TaskInterruptionError(interruptionResult, errorMessage))
             })
-        }))
+        })
+
+        // Calling the setup function if exists.
+        this.taskSetup = taskDefinition.taskSetup
+        if('taskSetup' in taskDefinition && typeof taskDefinition.taskSetup === 'function') {
+            taskDefinition.taskSetup(this)
+        }
     }
 
     // ------------------------------------------------------------------------------------------------------------ //
@@ -161,7 +216,7 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     // ------------------------------------------------------------------------------------------------------------ //
 
     /**
-     * Starts the execution of this tasks.
+     * Starts the execution of this [[Task]].
      *
      * @param args The arguments you want to pass to the task.
      */
@@ -208,6 +263,31 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
 
         // Return itself.
         return this
+    }
+
+    // ------------------------------------------------------------------------------------------------------------ //
+    // ---- TASK TYPE GETTERS ------------------------------------------------------------------------------------- //
+    // ------------------------------------------------------------------------------------------------------------ //
+
+    /**
+     * Gives the parent task of this task. Will be `null` if this task is a rootTask.
+     */
+    get parentTask(): Task<any, any[], PMessage, IResult>|null {
+        return this._parentTask
+    }
+
+    /**
+     * Returns `true` if this [[Task]] is a rootTask, which means that it has no parent.
+     */
+    get isRootTask(): boolean {
+        return this.parentTask === null
+    }
+
+    /**
+     * Returns `true` if this [[Task]] is a subTask, which means that it has a parent.
+     */
+    get isSubTask(): boolean {
+        return !this.isRootTask
     }
 
     // ------------------------------------------------------------------------------------------------------------ //
@@ -314,19 +394,7 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
         }
     }
 
-    /**
-     * Sets the task to the interruption state without calling the interrupter.
-     *
-     * @param interruptResult
-     */
-    softInterrupt(interruptResult: IResult): void {
-        this.assertState(TaskState.RUNNING)
-        this.setInterrupt(interruptResult)
-    }
 
-    setInterrupter(interrupter: TaskInterrupter<IResult>): void {
-        this.interrupter = interrupter
-    }
 
     // ------------------------------------------------------------------------------------------------------------ //
     // ---- STATE CONTROL ----------------------------------------------------------------------------------------- //
@@ -435,7 +503,10 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
         this.emit('progressUpdate', this.currentProgress, this.totalProgress, this.lastProgressMessage)
     }
 
-
+    /**
+     * Function that should be called when the task is finished. It will set the [[currentProgress]] to
+     * the value of [[totalProgress]].
+     */
     protected finishProgress() {
         if(this.totalProgress === undefined) {
             if(this.currentProgress <= 0) {
@@ -461,6 +532,9 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
         return this._totalProgress
     }
 
+    /**
+     * Returns the last progress-message that was send.
+     */
     get lastProgressMessage(): PMessage|undefined {
         return this._lastProgressMessage
     }
@@ -486,16 +560,43 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
      */
     interrupt(flag: TaskInterruptionFlag = TaskInterruptionFlag.DEFAULT)
         : Promise<IResult|null> {
-        return new Promise<IResult|null>((resolve, reject) => {
+        return new Promise<IResult|null>(async (resolve, reject) => {
 
-            // Register some event-listeners
-            this.once('failed', reason => reject(reason))
-            this.once('interrupted', interruptionResult => resolve(interruptionResult))
-            this.once('succeeded', () => resolve(null))
+            try {
+                // Call the interrupter if the task is running
+                if(this.isRunning) {
+                    await this.callInterrupter(flag, true)
+                }
 
-            // Call the interrupter
-            this.callInterrupter(flag, true).catch(reject)
+                // Immediately resolve when task has already been finished
+                if(this.isFinished) {
+                    if(this.isInterrupted) {
+                        resolve(this.interruptionResult)
+                    } else if(this.isFinished) {
+                        resolve(null)
+                    }
+                } else {
+                    // Register some event-listeners
+                    this.once('failed', reason => reject(reason))
+                    this.once('interrupted', interruptionResult => resolve(interruptionResult))
+                    this.once('succeeded', () => resolve(null))
+                }
+            } catch (e) {
+                reject(e)
+            }
+
+
         })
+    }
+
+    /**
+     * Sets the task to the interruption state without calling the interrupter.
+     *
+     * @param interruptResult
+     */
+    softInterrupt(interruptResult: IResult): void {
+        this.assertState(TaskState.RUNNING)
+        this.setInterrupt(interruptResult)
     }
 
     /**
@@ -508,32 +609,60 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
         this.assertState(TaskState.RUNNING)
 
         let res: IResult|undefined
-        if(this.interrupter !== undefined) {
+        if(this.interrupters.size > 0) {
             try {
-                // Call the interrupter.
-                if(isTaskProvider(this.taskDefinition)) {
-                    res = await this.interrupter.call(this.taskDefinition, flag)
-                } else {
-                    res = await this.interrupter(flag)
-                }
+                const results = await Promise.all(
+                    [...this.interrupters].map(interrupter => {
+                        if(isTaskProvider(this.taskDefinition)) {
+                            return interrupter.call(this.taskDefinition, flag)
+                        } else {
+                            return interrupter(flag)
+                        }
+                    })
+                )
+                res = results[results.length - 1]
             } catch (e) {
-                // Catch the interruption error.
                 if(isTaskInterruptionError(e)) {
                     res = e.interruptionResult as IResult
                 } else {
-                    // Rethrown the other error.
                     throw e
                 }
             }
 
             if(setState) {
-                this.setInterrupt(res)
+                this.setInterrupt(res as IResult)
             }
         }
+
 
         await this.interruptRunningSubTasks(flag)
 
         return res
+    }
+
+    /**
+     * Add an interrupter to the task.
+     * @param interrupter The interrupter you want to add.
+     */
+    addInterrupter(interrupter: TaskInterrupter<IResult>): this {
+        this.interrupters.add(interrupter)
+        return this
+    }
+
+    /**
+     * Remove an interrupter from the task.
+     * @param interrupter The interrupter you want to add
+     */
+    deleteInterrupter(interrupter: TaskInterrupter<IResult>): boolean {
+        return this.interrupters.delete(interrupter)
+    }
+
+    /**
+     * Removes all interrupters from the task.
+     */
+    clearInterrupters(): this {
+        this.interrupters.clear()
+        return this
     }
 
     // ------------------------------------------------------------------------------------------------------------ //
@@ -541,42 +670,41 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     // ------------------------------------------------------------------------------------------------------------ //
 
     addSubTask<SubTResult, SubTArgs extends any[]>(
-        task: TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>,
+        task: Task<SubTResult, SubTArgs, PMessage, IResult>,
         progressInheritance?: ProgressInheritance,
-        name?: string
-    ): SubTask<SubTResult, SubTArgs, PMessage, IResult> {
+    ): Task<SubTResult, SubTArgs, PMessage, IResult> {
 
-        // Creating the subTask.
-        const result = new SubTask<SubTResult, SubTArgs, PMessage, IResult>(
-            task,
-            (this as unknown) as Task<any, any[], PMessage, IResult>,
-            name
-        )
+        if(task.state !== TaskState.READY) {
+            throw new Error(`You can't add a subTask that is not in the 'READY'-state.`)
+        }
+
+        // Setting the parent on the SubTask to this task.
+        task._parentTask = this as any
 
         // Inherit some events
-        this.inheritFailures(result)
-        this.inheritProgress(result, progressInheritance)
+        this.inheritFailures(task)
+        this.inheritProgress(task, progressInheritance)
 
         // Listen to subProcess update
-        result.on('progressUpdate', (progress, progressTotal, progressMessage) => {
+        task.on('progressUpdate', (progress, progressTotal, progressMessage) => {
             this.emit('subProgressUpdate',
                 progress,
                 progressTotal,
                 progressMessage,
-                (result as unknown) as SubTask<unknown, unknown[], PMessage, IResult>
+                task,
             )
         })
 
         // Inherit custom events
-        result.on('newCustomEvent', (event) => {
-            result.on(event, (...args: any[]) => this.emit(event, ...args))
+        task.on('newCustomEvent', (event) => {
+            task.on(event, (...args: any[]) => this.emit(event, ...args))
         })
 
         // Add it to the subTasks array.
-        this._subTasks.push((result as unknown) as SubTask<any, any[], PMessage, IResult>)
+        this._subTasks.push(task as any)
 
-        // Return the result
-        return result
+        // Return the task
+        return task
     }
 
     protected inheritProgress<SubTResult, SubTArgs extends any[]>(
@@ -665,31 +793,31 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     /**
      * Returns an array of all the sub-tasks registered on this task.
      */
-    get subTasks(): SubTask<any, any[], PMessage, IResult>[] {
+    get subTasks(): Task<any, any[], PMessage, IResult>[] {
         return this._subTasks
     }
 
-    get readySubTasks(): SubTask<any, any[], PMessage, IResult>[] {
+    get readySubTasks(): Task<any, any[], PMessage, IResult>[] {
         return this.subTasks.filter(subTask => subTask.isReady)
     }
 
-    get runningSubTasks(): SubTask<any, any[], PMessage, IResult>[] {
+    get runningSubTasks(): Task<any, any[], PMessage, IResult>[] {
         return this.subTasks.filter(subTask => subTask.isRunning)
     }
 
-    get succeededSubTasks(): SubTask<any, any[], PMessage, IResult>[] {
+    get succeededSubTasks(): Task<any, any[], PMessage, IResult>[] {
         return this.subTasks.filter(subTask => subTask.isSucceeded)
     }
 
-    get failedSubTasks(): SubTask<any, any[], PMessage, IResult>[] {
+    get failedSubTasks(): Task<any, any[], PMessage, IResult>[] {
         return this.subTasks.filter(subTask => subTask.isFailed)
     }
 
-    get interruptedSubTasks(): SubTask<any, any[], PMessage, IResult>[] {
+    get interruptedSubTasks(): Task<any, any[], PMessage, IResult>[] {
         return this.subTasks.filter(subTask => subTask.isInterrupted)
     }
 
-    get finishedSubTasks(): SubTask<any, any[], PMessage, IResult>[] {
+    get finishedSubTasks(): Task<any, any[], PMessage, IResult>[] {
         return this.subTasks.filter(subTask => subTask.isFinished)
     }
 
@@ -699,12 +827,28 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
 
     addCleanupTask(
         task: CleanupTaskDefinition<TResult, TArgs, IResult>,
-        progressInheritanceScale?: ProgressInheritanceScale,
-        name?: string
+    ): CleanupTask<TResult, TArgs, IResult>
+    addCleanupTask(
+        name: string,
+        task: CleanupTaskDefinition<TResult, TArgs, IResult>,
+    ): CleanupTask<TResult, TArgs, IResult>
+    addCleanupTask(
+        arg0: string|CleanupTaskDefinition<TResult, TArgs, IResult>,
+        arg1?: CleanupTaskDefinition<TResult, TArgs, IResult>,
     ): CleanupTask<TResult, TArgs, IResult> {
-        const result = new CleanupTask<TResult, TArgs, IResult>(task, name, progressInheritanceScale)
-        this._cleanupTasks.push(result)
-        return result
+        // Get the parameters
+        const taskDefinition = typeof arg0 === 'string' ? arg1 : arg0
+        const name = typeof arg0 === 'string' ? arg0 : undefined
+        // Throw error if taskDefinition is undefined.
+        if(taskDefinition === undefined) {
+            throw new TypeError(`No TaskDefinition Provided.`)
+        }
+        // Get the CleanupTask
+        const cleanupTask: CleanupTask<TResult, TArgs, IResult> =
+            taskDefinition instanceof Task && taskDefinition.state === TaskState.READY ? taskDefinition :
+                typeof name === 'string' ? new Task(name, taskDefinition) : new Task(taskDefinition)
+        this._cleanupTasks.push(cleanupTask)
+        return cleanupTask
     }
 
     get cleaned(): boolean {
@@ -720,6 +864,11 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
 
     /**
      * Returns a TaskFunction that runs all cleanup tasks of this task.
+     *
+     * First, the [[cleanupTask]] of the subTasks will be executed in reversed order. (So the last added subTask will
+     * be executed first.)
+     * Then, the  [[cleanupTasks]] of this [[Task]] will be executed in reversed order. (So the last added cleanupTask
+     * will be executed first.)
      */
     get cleanupTask(): TaskFunction<void, [], CleanupProgressMessage, CleanupInterruptionResult> {
         return async context => {
@@ -729,14 +878,14 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
             // Checking if the task wasn't already cleaned.
             if(this.cleaned) { return }
 
-            // Running the cleanup tasks.
-            for (const cleanupTask of this.cleanupTasks) {
-                await cleanupTask.run(this.failureReason, this.interruptionResult, this.result)
+            // Running the cleanup of the sub-tasks, in reversed order. (LIFO)
+            for (const subTask of this.subTasks.reverse()) {
+                await context.runSubTask(`Cleanup SubTask '${this.name}'`, subTask.cleanupTask)
             }
 
-            // Running the cleanup of the sub-tasks.
-            for (const subTask of this.subTasks) {
-                await context.runSubTask(`Cleanup SubTask '${this.name}'`, subTask.cleanupTask)
+            // Running the cleanup tasks, in reversed order. (LIFO)
+            for (const cleanupTask of this.cleanupTasks.reverse()) {
+                await cleanupTask.run(this.failureReason, this.interruptionResult, this.result)
             }
 
             // Setting the has cleaned property.
@@ -761,6 +910,15 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
             `Cleanup Task '${this.name}'`,
             this.cleanupTask
         )
+
+        // Forward events.
+        result.once('started', this.emitLambda('cleanupStarted'))
+        result.once('succeeded', this.emitLambda('cleanupSucceeded'))
+        result.once('failed', this.emitLambda('cleanupFailed'))
+        result.once('interrupted', this.emitLambda('cleanupInterrupted'))
+        result.once('finished', this.emitLambda('cleanupFinished'))
+        result.on('stateChange', this.emitLambda('cleanupStateChange'))
+        result.on('progressUpdate', this.emitLambda('cleanupProgressUpdate'))
 
         // Start the cleanup and return the task.
         return result.run()
@@ -834,27 +992,6 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     }
 
     // ------------------------------------------------------------------------------------------------------------ //
-    // ---- IMPLEMENTING: Promise --------------------------------------------------------------------------------- //
-    // ------------------------------------------------------------------------------------------------------------ //
-
-    catch<TResult1 = never>(
-        onRejected?: ((reason: any) => (PromiseLike<TResult1> | TResult1)) | undefined | null
-    ): Promise<TResult | TResult1> {
-        return this.promise.catch(onRejected)
-    }
-
-    finally(onFinally?: (() => void) | undefined | null): Promise<TResult> {
-        return this.promise.finally(onFinally)
-    }
-
-    then<TResult1 = TResult, TResult2 = never>(
-        onFulfilled?: ((value: TResult) => (PromiseLike<TResult1> | TResult1)) | undefined | null,
-        onRejected?: ((reason: any) => (PromiseLike<TResult2> | TResult2)) | undefined | null
-    ): Promise<TResult1 | TResult2> {
-        return this.promise.then(onFulfilled, onRejected)
-    }
-
-    // ------------------------------------------------------------------------------------------------------------ //
     // ---- EVENTS ------------------------------------------------------------------------------------------------ //
     // ------------------------------------------------------------------------------------------------------------ //
 
@@ -885,7 +1022,7 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     registerEvent(event: string|symbol): this {
         if(this.eventIsNew(event)) {
             this.customEvents.push(event)
-            super.emit('newCustomEvent', event)
+            this.eventEmitter.emit('newCustomEvent', event)
         }
         return this
     }
@@ -894,268 +1031,136 @@ export class Task<TResult = void, TArgs extends any[] = [], PMessage = string, I
     // ---- IMPLEMENTING: EventEmitter ---------------------------------------------------------------------------- //
     // ------------------------------------------------------------------------------------------------------------ //
 
-    addListener(event: 'started',        listener: (...args: TArgs) => void): this
-    addListener(event: 'succeeded',      listener: (result: TResult) => void): this
-    addListener(event: 'failed',         listener: (reason: any) => void): this
-    addListener(event: 'interrupted',    listener: (interruptionResult: IResult) => void): this
-    addListener(event: 'finished',       listener: (state: TaskState) => void): this
-    addListener(event: 'stateChange',    listener: (state: TaskState, previousState: TaskState) => void): this
-    addListener(event: 'newCustomEvent', listener: (event: string|symbol) => void): this
-    addListener(event: 'progressUpdate', listener: (progress: number,
-                                                    progressTotal?: number,
-                                                    progressMessage?: PMessage) => void): this
-    addListener(event: 'subProgressUpdate', listener: (
-        progress: number,
-        progressTotal?: number,
-        progressMessage?: PMessage,
-        subTask?: SubTask<unknown, unknown[], PMessage, IResult>
-    ) => void): this
+    addListener<K extends keyof TaskEvents>(event: K, listener: TaskEvents[K]): this
     addListener(event: string|symbol, listener: ((...args: any[]) => void)|((...args: TArgs) => void)): this
     addListener(event: string|symbol, listener: ((...args: any[]) => void)|((...args: TArgs) => void)): this {
-        return super.addListener(event, listener as ((...args: any[]) => void))
+        this.eventEmitter.addListener(event, listener as ((...args: any[]) => void))
+        return this
     }
 
-    on(event: 'started',        listener: (...args: TArgs) => void): this
-    on(event: 'succeeded',      listener: (result: TResult) => void): this
-    on(event: 'failed',         listener: (reason: any) => void): this
-    on(event: 'interrupted',    listener: (interruptionResult: IResult) => void): this
-    on(event: 'finished',       listener: (state: TaskState) => void): this
-    on(event: 'stateChange',    listener: (state: TaskState, previousState: TaskState) => void): this
-    on(event: 'newCustomEvent', listener: (event: string|symbol) => void): this
-    on(event: 'progressUpdate', listener: (progress: number,
-                                           progressTotal?: number,
-                                           progressMessage?: PMessage) => void): this
-    on(event: 'subProgressUpdate', listener: (
-        progress: number,
-        progressTotal?: number,
-        progressMessage?: PMessage,
-        subTask?: SubTask<unknown, unknown[], PMessage, IResult>
-    ) => void): this
+    on<K extends keyof TaskEvents>(event: K, listener: TaskEvents[K]): this
     on(event: string|symbol,    listener: ((...args: any[]) => void)|((...args: TArgs) => void)): this
     on(event: string|symbol,    listener: ((...args: any[]) => void)|((...args: TArgs) => void)): this {
-        return super.on(event, listener as ((...args: any[]) => void))
+        this.eventEmitter.on(event, listener as ((...args: any[]) => void))
+        return this
     }
 
-    once(event: 'started',        listener: (...args: TArgs) => void): this
-    once(event: 'succeeded',      listener: (result: TResult) => void): this
-    once(event: 'failed',         listener: (reason: any) => void): this
-    once(event: 'interrupted',    listener: (interruptionResult: IResult) => void): this
-    once(event: 'finished',       listener: (state: TaskState) => void): this
-    once(event: 'stateChange',    listener: (state: TaskState, previousState: TaskState) => void): this
-    once(event: 'newCustomEvent', listener: (event: string|symbol) => void): this
-    once(event: 'progressUpdate', listener: (progress: number,
-                                             progressTotal?: number,
-                                             progressMessage?: PMessage) => void): this
-    once(event: 'subProgressUpdate', listener: (
-        progress: number,
-        progressTotal?: number,
-        progressMessage?: PMessage,
-        subTask?: SubTask<unknown, unknown[], PMessage, IResult>
-    ) => void): this
+    once<K extends keyof TaskEvents>(event: K, listener: TaskEvents[K]): this
     once(event: string|symbol,    listener: ((...args: any[]) => void)|((...args: TArgs) => void)): this
     once(event: string|symbol,    listener: ((...args: any[]) => void)|((...args: TArgs) => void)): this {
-        return super.once(event, listener as ((...args: any[]) => void))
+        this.eventEmitter.once(event, listener as ((...args: any[]) => void))
+        return this
     }
 
-    removeListener(event: 'started',        listener: (...args: TArgs) => void): this
-    removeListener(event: 'succeeded',      listener: (result: TResult) => void): this
-    removeListener(event: 'failed',         listener: (reason: any) => void): this
-    removeListener(event: 'interrupted',    listener: (interruptionResult: IResult) => void): this
-    removeListener(event: 'finished',       listener: (state: TaskState) => void): this
-    removeListener(event: 'stateChange',    listener: (state: TaskState, previousState: TaskState) => void): this
-    removeListener(event: 'newCustomEvent', listener: (event: string|symbol) => void): this
-    removeListener(event: 'progressUpdate', listener: (progress: number,
-                                                       progressTotal?: number,
-                                                       progressMessage?: PMessage) => void): this
-    removeListener(event: 'subProgressUpdate', listener: (
-        progress: number,
-        progressTotal?: number,
-        progressMessage?: PMessage,
-        subTask?: SubTask<unknown, unknown[], PMessage, IResult>
-    ) => void): this
+    removeListener<K extends keyof TaskEvents>(event: K, listener: TaskEvents[K]): this
     removeListener(event: string|symbol,    listener: ((...args: any[]) => void)|((...args: TArgs) => void)): this
     removeListener(event: string|symbol,    listener: ((...args: any[]) => void)|((...args: TArgs) => void)): this {
-        return super.removeListener(event, listener as ((...args: any[]) => void))
+        this.eventEmitter.removeListener(event, listener as ((...args: any[]) => void))
+        return this
     }
 
-    off(event: 'started',        listener: (...args: TArgs) => void): this
-    off(event: 'succeeded',      listener: (result: TResult) => void): this
-    off(event: 'failed',         listener: (reason: any) => void): this
-    off(event: 'interrupted',    listener: (interruptionResult: IResult) => void): this
-    off(event: 'finished',       listener: (state: TaskState) => void): this
-    off(event: 'stateChange',    listener: (state: TaskState, previousState: TaskState) => void): this
-    off(event: 'newCustomEvent', listener: (event: string|symbol) => void): this
-    off(event: 'progressUpdate', listener: (progress: number,
-                                            progressTotal?: number,
-                                            progressMessage?: PMessage) => void): this
-    off(event: 'subProgressUpdate', listener: (
-        progress: number,
-        progressTotal?: number,
-        progressMessage?: PMessage,
-        subTask?: SubTask<unknown, unknown[], PMessage, IResult>
-    ) => void): this
+    off<K extends keyof TaskEvents>(event: K, listener: TaskEvents[K]): this
     off(event: string|symbol,    listener: ((...args: any[]) => void)|((...args: TArgs) => void)): this
     off(event: string|symbol,    listener: ((...args: any[]) => void)|((...args: TArgs) => void)): this {
-        return super.off(event, listener as ((...args: any[]) => void))
+        this.eventEmitter.off(event, listener as ((...args: any[]) => void))
+        return this
     }
 
-    removeAllListeners(event?: 'started'): this
-    removeAllListeners(event?: 'succeeded'): this
-    removeAllListeners(event?: 'failed'): this
-    removeAllListeners(event?: 'interrupted'): this
-    removeAllListeners(event?: 'finished'): this
-    removeAllListeners(event?: 'stateChange'): this
-    removeAllListeners(event?: 'newCustomEvent'): this
-    removeAllListeners(event?: 'progressUpdate'): this
-    removeAllListeners(event?: 'subProgressUpdate'): this
+    removeAllListeners<K extends keyof TaskEvents>(event?: K): this
     removeAllListeners(event?: string|symbol): this
     removeAllListeners(event?: string|symbol): this {
-        return super.removeAllListeners(event)
+        this.eventEmitter.removeAllListeners(event)
+        return this
     }
 
-    listeners(event: 'started'): Function[]
-    listeners(event: 'succeeded'): Function[]
-    listeners(event: 'failed'): Function[]
-    listeners(event: 'interrupted'): Function[]
-    listeners(event: 'finished'): Function[]
-    listeners(event: 'stateChange'): Function[]
-    listeners(event: 'newCustomEvent'): Function[]
-    listeners(event: 'progressUpdate'): Function[]
-    listeners(event: 'subProgressUpdate'): Function[]
+    listeners<K extends keyof TaskEvents>(event: K): Function[]
     listeners(event: string | symbol): Function[]
     listeners(event: string | symbol): Function[] {
-        return super.listeners(event)
+        return this.eventEmitter.listeners(event)
     }
 
-    rawListeners(event: 'started'): Function[]
-    rawListeners(event: 'succeeded'): Function[]
-    rawListeners(event: 'failed'): Function[]
-    rawListeners(event: 'interrupted'): Function[]
-    rawListeners(event: 'finished'): Function[]
-    rawListeners(event: 'stateChange'): Function[]
-    rawListeners(event: 'newCustomEvent'): Function[]
-    rawListeners(event: 'progressUpdate'): Function[]
-    rawListeners(event: 'subProgressUpdate'): Function[]
+    rawListeners<K extends keyof TaskEvents>(event: K): Function[]
     rawListeners(event: string | symbol): Function[]
     rawListeners(event: string | symbol): Function[] {
-        return super.rawListeners(event)
+        return this.eventEmitter.rawListeners(event)
     }
 
-    emit(event: 'started',        ...args: TArgs): boolean
-    emit(event: 'succeeded',      result: TResult): boolean
-    emit(event: 'failed',         reason: any): boolean
-    emit(event: 'interrupted',    interruptionResult: IResult): boolean
-    emit(event: 'finished',       state: TaskState): boolean
-    emit(event: 'stateChange',    state: TaskState, previousState: TaskState): boolean
-    emit(event: 'newCustomEvent', newEvent: string|symbol): boolean
-    emit(event: 'progressUpdate', progress: number, progressTotal?: number, progressMessage?: PMessage): boolean
-    emit(event: 'subProgressUpdate', progress: number,
-                                     progressTotal?: number,
-                                     progressMessage?: PMessage,
-                                     subTask?: SubTask<unknown, unknown[], PMessage, IResult>): boolean
+    emit<K extends keyof TaskEvents>(event: K, ...args: Parameters<TaskEvents[K]>): boolean
     emit(event: string|symbol,    ...args: any[]|TArgs): boolean
     emit(event: string|symbol,    ...args: any[]|TArgs): boolean {
         this.registerEvent(event)
-        return super.emit(event, ...args)
+        return this.eventEmitter.emit(event, ...args)
     }
 
-    listenerCount(event: 'started'): number
-    listenerCount(event: 'succeeded'): number
-    listenerCount(event: 'failed'): number
-    listenerCount(event: 'interrupted'): number
-    listenerCount(event: 'finished'): number
-    listenerCount(event: 'stateChange'): number
-    listenerCount(event: 'newCustomEvent'): number
-    listenerCount(event: 'progressUpdate'): number
-    listenerCount(event: 'subProgressUpdate'): number
+    listenerCount<K extends keyof TaskEvents>(event: K): number
     listenerCount(event: string | symbol): number
     listenerCount(event: string | symbol): number {
-        return super.listenerCount(event)
+        return this.eventEmitter.listenerCount(event)
     }
 
-    prependListener(event: 'started',        listener: (...args: TArgs) => void): this
-    prependListener(event: 'succeeded',      listener: (result: TResult) => void): this
-    prependListener(event: 'failed',         listener: (reason: any) => void): this
-    prependListener(event: 'interrupted',    listener: (interruptionResult: IResult) => void): this
-    prependListener(event: 'finished',       listener: (state: TaskState) => void): this
-    prependListener(event: 'newCustomEvent', listener: (event: string|symbol) => void): this
-    prependListener(event: 'stateChange',    listener: (state: TaskState, previousState: TaskState) => void): this
-    prependListener(event: 'progressUpdate', listener: (progress: number,
-                                                        progressTotal?: number,
-                                                        progressMessage?: PMessage) => void): this
-    prependListener(event: 'subProgressUpdate', listener: (
-        progress: number,
-        progressTotal?: number,
-        progressMessage?: PMessage,
-        subTask?: SubTask<unknown, unknown[], PMessage, IResult>
-    ) => void): this
+    prependListener<K extends keyof TaskEvents>(event: K, listener: TaskEvents[K]): this
     prependListener(event: string|symbol, listener: ((...args: any[]) => void)|((...args: TArgs) => void)): this
     prependListener(event: string|symbol, listener: ((...args: any[]) => void)|((...args: TArgs) => void)): this {
-        return super.prependListener(event, listener as ((...args: any[]) => void))
+        this.eventEmitter.prependListener(event, listener as ((...args: any[]) => void))
+        return this
     }
 
-    prependOnceListener(event: 'started',        listener: (...args: TArgs) => void): this
-    prependOnceListener(event: 'succeeded',      listener: (result: TResult) => void): this
-    prependOnceListener(event: 'failed',         listener: (reason: any) => void): this
-    prependOnceListener(event: 'interrupted',    listener: (interruptionResult: IResult) => void): this
-    prependOnceListener(event: 'finished',       listener: (state: TaskState) => void): this
-    prependOnceListener(event: 'newCustomEvent', listener: (event: string|symbol) => void): this
-    prependOnceListener(event: 'stateChange',    listener: (state: TaskState, previousState: TaskState) => void): this
-    prependOnceListener(event: 'progressUpdate', listener: (progress: number,
-                                                            progressTotal?: number,
-                                                            progressMessage?: PMessage) => void): this
-    prependOnceListener(event: 'subProgressUpdate', listener: (
-        progress: number,
-        progressTotal?: number,
-        progressMessage?: PMessage,
-        subTask?: SubTask<unknown, unknown[], PMessage, IResult>
-    ) => void): this
+    prependOnceListener<K extends keyof TaskEvents>(event: K, listener: TaskEvents[K]): this
     prependOnceListener(event: string|symbol, listener: ((...args: any[]) => void)|((...args: TArgs) => void)): this
     prependOnceListener(event: string|symbol, listener: ((...args: any[]) => void)|((...args: TArgs) => void)): this {
-        return super.prependOnceListener(event, listener as ((...args: any[]) => void))
+        this.eventEmitter.prependOnceListener(event, listener as ((...args: any[]) => void))
+        return this
+    }
+
+    eventNames(): Array<keyof TaskEvents | string | symbol> {
+        return this.eventEmitter.eventNames()
+    }
+
+    getMaxListeners(): number {
+        return this.eventEmitter.getMaxListeners()
+    }
+
+    setMaxListeners(n: number): this
+    setMaxListeners(n: number): this
+    setMaxListeners(n: number): this {
+        this.eventEmitter.setMaxListeners(n)
+        return this
+    }
+
+    // ------------------------------------------------------------------------------------------------------------ //
+    // ---- EventEmitter Helpers ---------------------------------------------------------------------------------- //
+    // ------------------------------------------------------------------------------------------------------------ //
+
+    /**
+     * Calls the [[emit]] method in Lambda-calculus style.
+     * @param event The event you want to emit.
+     */
+    emitLambda<K extends keyof TaskEvents>(event: K): TaskEvents[K]
+    emitLambda(event: string|symbol): ((...args: any[]) => boolean)
+    emitLambda(event: string|symbol): ((...args: any[]) => boolean) {
+        return (...args: any[]) => this.emit(event, ...args)
+    }
+
+    // ------------------------------------------------------------------------------------------------------------ //
+    // ---- IMPLEMENT: Promise ------------------------------------------------------------------------------------ //
+    // ------------------------------------------------------------------------------------------------------------ //
+
+    catch<R = never>(onRejected?: ((reason: any) => (PromiseLike<R> | R)) | undefined | null): Promise<R | TResult> {
+        return this._promise.catch(onRejected)
+    }
+
+    finally(onFinally?: (() => void) | undefined | null): Promise<TResult> {
+        return this._promise.catch(onFinally) as any
+    }
+
+    then<R1 = TResult, R2 = never>(
+        onFulfilled?: ((value: TResult) => (PromiseLike<R1> | R1)) | undefined | null,
+        onRejected?: ((reason: any) => (PromiseLike<R2> | R2)) | undefined | null
+    ): Promise<R1 | R2> {
+        return this._promise.then(onFulfilled, onRejected)
     }
 
 }
 
-
-export class SubTask<TResult = void, TArgs extends any[] = [], PMessage = string, IResult = any>
-    extends Task<TResult, TArgs, PMessage, IResult> {
-
-    readonly parent: Task<any, any[], PMessage, IResult>
-
-    constructor(task: TaskDefinition<TResult, TArgs, PMessage, IResult>,
-                parent: Task<any, any[], PMessage, IResult>,
-                name?: string) {
-        if(name) {
-            super(name, task)
-        } else {
-            super(task)
-        }
-
-        this.parent = parent
-    }
-
-}
-
-export class CleanupTask<TResult = void, TArgs extends any[] = [], IResult = any>
-    extends Task<void,
-        [any|undefined, IResult|undefined, TResult|undefined],
-        CleanupProgressMessage,
-        CleanupInterruptionResult> {
-
-    progressWeight: number
-
-    constructor(
-        task: CleanupTaskDefinition<TResult, TArgs, IResult>,
-        name?: string,
-        progressWeight: ProgressInheritanceScale = 1
-    ) {
-        if(name) {
-            super(name, task)
-        } else {
-            super(task)
-        }
-        this.progressWeight = progressWeight
-    }
-
-}
+// Set the promise as it's prototype
+// Task.constructor

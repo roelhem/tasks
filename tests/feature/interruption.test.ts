@@ -26,7 +26,7 @@ describe('Interruption behaviour', () => {
         t.run().catch(() => { return })
 
         await a
-        a.context.setInterrupter(interrupter)
+        a.context.addInterrupter(interrupter)
 
         const pr = t.interrupt(task.INTERRUPT_TEST)
         expect(await pr).toBe('interrupted')
@@ -48,7 +48,7 @@ describe('Interruption behaviour', () => {
         t.run().catch(() => { return })
 
         await a
-        a.context.setInterrupter(interrupter)
+        a.context.addInterrupter(interrupter)
 
         const pr = t.interrupt(task.INTERRUPT_TEST)
         expect(await pr).toBeUndefined()
@@ -68,7 +68,7 @@ describe('Interruption behaviour', () => {
 
         t.run().catch(() => { return })
         await a
-        a.context.setInterrupter(aInterrupter)
+        a.context.addInterrupter(aInterrupter)
         expect(t.isRunning).toBeTruthy()
 
         expect(await t.interrupt(task.INTERRUPT_TEST)).toBe('A_interrupted')

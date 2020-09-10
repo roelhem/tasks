@@ -43,7 +43,7 @@ export interface StreamWriteMethod<T = any> {
 // -------------------------------------------------------------------------------------------------------------- //
 
 export interface WritableManagerObject<T = never, S extends Writable = Writable> {
-    readonly stream: S,
+    readonly stream: S
     send: StreamWriteMethod<T>
 }
 
@@ -56,7 +56,7 @@ export class WritableManagerInstance<T = any, S extends Writable = Writable> imp
         parser: Parser<T>|PredefinedParser = DEFAULT_PARSER
     ): WritableManager<T, S> {
         const instance = new WritableManagerInstance<T, S>(stream, parser)
-        const method = instance.send
+        const method = (data: any, ...args: any[]) => instance.send(data, ...args)
         return Object.assign(method, instance)
     }
 

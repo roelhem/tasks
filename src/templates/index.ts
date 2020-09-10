@@ -1,5 +1,1 @@
-import TriggerableTaskTemplate from './TriggerableTaskTemplate'
-import SpawnProcessTaskTemplate from './SpawnProcessTaskTemplate'
-import ChildProcessTaskTemplate from './ChildProcessTaskTemplate'
-
-export { TriggerableTaskTemplate, SpawnProcessTaskTemplate, ChildProcessTaskTemplate }
+export {default as TriggerableTaskTemplate } from './TriggerableTaskTemplate'

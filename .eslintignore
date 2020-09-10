@@ -1,0 +1,4 @@
+**/*.js
+/tests/**/*.ts
+/tests/**/*.js
+/node_modules

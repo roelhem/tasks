@@ -1,14 +1,28 @@
-import {CleanupTask, SubTask, Task} from '../Task'
+import {CleanupTask, Task} from '../Task'
 import {
+    ChildProcessOptions,
+    ChildProcessProvider,
     CleanupTaskDefinition,
     ProgressInheritance,
-    ProgressInheritanceScale,
     TaskDefinition,
-    TaskInterrupter
+    TaskInterrupter,
+    TaskState
 } from '../types'
 import {isProgressInheritance, isTaskDefinition} from './checkers'
 
+type ChildProcess<PData extends {} = {}, PMessage = any, IResult = any> =
+    import('../ChildProcess').default<PData, PMessage, IResult>
+type ChildProcessConstructor<PData extends {} = {}, PMessage = any, IResult = any> = {
+    new (provider: ChildProcessProvider<PData, PMessage, IResult>): ChildProcess<PData, PMessage, IResult>
+    new (executable: string,
+         options?: ChildProcessOptions<PData, PMessage, IResult>): ChildProcess<PData, PMessage, IResult>
+}
+
 export default class TaskContext<TResult = void, TArgs extends any[] = [], PMessage = string, IResult = any> {
+
+    // ------------------------------------------------------------------------------------------------------------ //
+    // ---- STATIC CONSTRUCTORS ----------------------------------------------------------------------------------- //
+    // ------------------------------------------------------------------------------------------------------------ //
 
     static empty<TResult = void,
                  TArgs extends any[] = [],
@@ -18,8 +32,16 @@ export default class TaskContext<TResult = void, TArgs extends any[] = [], PMess
         return new TaskContext<TResult, TArgs, PMessage, IResult>(emptyTask, args)
     }
 
+    private static _ChildProcess?: ChildProcessConstructor
+    protected static get ChildProcess(): ChildProcessConstructor {
+        if(!this._ChildProcess) {
+            this._ChildProcess = require('../ChildProcess').default as ChildProcessConstructor
+        }
+        return this._ChildProcess
+    }
+
     // ------------------------------------------------------------------------------------------------------------ //
-    // ---- GETTERS ----------------------------------------------------------------------------------------------- //
+    // ---- INITIALISATION ---------------------------------------------------------------------------------------- //
     // ------------------------------------------------------------------------------------------------------------ //
 
     /**
@@ -81,8 +103,17 @@ export default class TaskContext<TResult = void, TArgs extends any[] = [], PMess
      *
      * @param interrupter The interrupter method.
      */
-    setInterrupter(interrupter: TaskInterrupter<IResult>): this {
-        this.task.setInterrupter(interrupter)
+    addInterrupter(interrupter: TaskInterrupter<IResult>): this {
+        this.task.addInterrupter(interrupter)
+        return this
+    }
+
+    deleteInterrupter(interrupter: TaskInterrupter<IResult>): boolean {
+        return this.task.deleteInterrupter(interrupter)
+    }
+
+    clearInterrupters(): this {
+        this.task.clearInterrupters()
         return this
     }
 
@@ -126,83 +157,126 @@ export default class TaskContext<TResult = void, TArgs extends any[] = [], PMess
     // ---- SUB TASKS --------------------------------------------------------------------------------------------- //
     // ------------------------------------------------------------------------------------------------------------ //
 
-    addSubTask<SubTResult = void, SubTArgs extends any[] = []>(
+    protected getSubTaskArgs<SubTResult = any, SubTArgs extends any[] = []>(
+        arg0: TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>|string|ProgressInheritance,
+        arg1?: TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>|string|any,
+        arg2?: TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>|any,
+        ...otherArgs: any[]
+    ): {
+        taskDefinition: TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>
+        name: string|undefined
+        progressInheritance: ProgressInheritance|undefined
+        args: SubTArgs
+    } {
+        // Get the right properties
+        let taskDefinition: TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>
+        let name: string|undefined
+        let progressInheritance: ProgressInheritance|undefined
+        let args: SubTArgs
+        if(isTaskDefinition(arg0)) {
+            taskDefinition = arg0
+            args = [arg1, arg2, ...otherArgs] as SubTArgs
+        } else if(isTaskDefinition(arg1)) {
+            taskDefinition = arg1
+            args = [arg2, ...otherArgs] as SubTArgs
+            if(isProgressInheritance(arg0)) {
+                progressInheritance = arg0
+            }
+            if(typeof arg0 === 'string') {
+                name = arg0
+            }
+        } else if(isTaskDefinition(arg2)) {
+            taskDefinition = arg2
+            args = otherArgs as SubTArgs
+            if(isProgressInheritance(arg0)) {
+                progressInheritance = arg0
+            }
+            if(typeof arg1 === 'string') {
+                name = arg1
+            }
+        } else {
+            throw new TypeError(`No TaskDefinition provided.`)
+        }
+
+        // Remove trailing undefined args
+        while (args.length > 0 && args[args.length - 1] === undefined) {
+            args.pop()
+        }
+
+        // Return the result
+        return {
+            taskDefinition,
+            name,
+            progressInheritance,
+            args,
+        }
+    }
+
+    addSubTask<SubTResult = any, SubTArgs extends any[] = []>(
         task: TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>
-    ): SubTask<SubTResult, SubTArgs, PMessage, IResult>
-    addSubTask<SubTResult = void, SubTArgs extends any[] = []>(
+    ): Task<SubTResult, SubTArgs, PMessage, IResult>
+    addSubTask<SubTResult = any, SubTArgs extends any[] = []>(
         name: string,
         task: TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>
-    ): SubTask<SubTResult, SubTArgs, PMessage, IResult>
-    addSubTask<SubTResult = void, SubTArgs extends any[] = []>(
+    ): Task<SubTResult, SubTArgs, PMessage, IResult>
+    addSubTask<SubTResult = any, SubTArgs extends any[] = []>(
         progressInheritance: ProgressInheritance,
         task: TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>
-    ): SubTask<SubTResult, SubTArgs, PMessage, IResult>
-    addSubTask<SubTResult = void, SubTArgs extends any[] = []>(
+    ): Task<SubTResult, SubTArgs, PMessage, IResult>
+    addSubTask<SubTResult = any, SubTArgs extends any[] = []>(
         progressInheritance: ProgressInheritance,
         name: string,
         task: TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>
-    ): SubTask<SubTResult, SubTArgs, PMessage, IResult>
+    ): Task<SubTResult, SubTArgs, PMessage, IResult>
     addSubTask<SubTResult, SubTArgs extends any[]>(
         arg0: TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>|string|ProgressInheritance,
         arg1?: TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>|string,
         arg2?: TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>
-    ): SubTask<SubTResult, SubTArgs, PMessage, IResult> {
-        if(isTaskDefinition(arg0)) {
-            return this.task.addSubTask<SubTResult, SubTArgs>(arg0)
-        } else if(isTaskDefinition(arg1)) {
-            if(isProgressInheritance(arg0)) {
-                return this.task.addSubTask<SubTResult, SubTArgs>(arg1, arg0)
-            } else {
-                return this.task.addSubTask<SubTResult, SubTArgs>(arg1, undefined, arg0 as string)
-            }
-        } else if(isTaskDefinition(arg2)) {
-            return this.task.addSubTask<SubTResult, SubTArgs>(arg2, arg0 as ProgressInheritance, arg1 as string)
-        }
-        throw new TypeError(`Invalid TaskContext.addSubTask(...) call.`)
+    ): Task<SubTResult, SubTArgs, PMessage, IResult> {
+        // Determine the parameters.
+        const {taskDefinition, name, progressInheritance} = this.getSubTaskArgs(arg0, arg1, arg2)
+
+        // Get the SubTask, add it to the parent and return it.
+        const task = taskDefinition instanceof Task && taskDefinition.state === 'READY' ? taskDefinition :
+            typeof name === 'string' ? new Task(name, taskDefinition) : new Task(taskDefinition)
+        return this.task.addSubTask(task, progressInheritance)
     }
 
     runSubTask<SubTResult = void, SubTArgs extends any[] = []>(
         task: TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>,
         ...args: SubTArgs
-    ): SubTask<SubTResult, SubTArgs, PMessage, IResult>
-
+    ): Task<SubTResult, SubTArgs, PMessage, IResult>
     runSubTask<SubTResult = void, SubTArgs extends any[] = []>(
         name: string,
         task: TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>,
         ...args: SubTArgs
-    ): SubTask<SubTResult, SubTArgs, PMessage, IResult>
+    ): Task<SubTResult, SubTArgs, PMessage, IResult>
 
     runSubTask<SubTResult = void, SubTArgs extends any[] = []>(
         progressInheritance: ProgressInheritance,
         task: TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>,
         ...args: SubTArgs
-    ): SubTask<SubTResult, SubTArgs, PMessage, IResult>
+    ): Task<SubTResult, SubTArgs, PMessage, IResult>
 
     runSubTask<SubTResult = void, SubTArgs extends any[] = []>(
         progressInheritance: ProgressInheritance,
         name: string,
         task: TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>,
         ...args: SubTArgs
-    ): SubTask<SubTResult, SubTArgs, PMessage, IResult>
+    ): Task<SubTResult, SubTArgs, PMessage, IResult>
     runSubTask<SubTResult, SubTArgs extends any[]>(
         arg0: TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>|string|ProgressInheritance,
         arg1?: TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>|string|any,
         arg2?: TaskDefinition<SubTResult, SubTArgs, PMessage, IResult>|any,
-        ...args: any[]
-    ): SubTask<SubTResult, SubTArgs, PMessage, IResult> {
-        // Getting the right task.
-        if(isTaskDefinition(arg0)) { // TYPE 1
-            return this.addSubTask<SubTResult, SubTArgs>(arg0)
-                .run(...[arg1, arg2, ...args] as SubTArgs)
-        } else if(isTaskDefinition(arg1)) { // TYPE 1, 2
-            return this.addSubTask<SubTResult, SubTArgs>(arg0 as string, arg1)
-                .run(...[arg2, ...args] as SubTArgs)
-        } else if(isTaskDefinition(arg2)) { // TYPE 3
-            return this.addSubTask<SubTResult, SubTArgs>(arg0 as ProgressInheritance, arg1 as string, arg2)
-                .run(...args as SubTArgs)
-        } else {
-            throw new TypeError(`Invalid TaskContext.runSubTask(...) call.`)
-        }
+        ...otherArgs: any[]
+    ): Task<SubTResult, SubTArgs, PMessage, IResult> {
+        // Determine the parameters.
+        const {taskDefinition, name, progressInheritance, args} = this.getSubTaskArgs(arg0, arg1, arg2, ...otherArgs)
+
+        // Get the SubTask, add it to the parent, call run and return it.
+        const task = taskDefinition instanceof Task && taskDefinition.state === 'READY' ? taskDefinition :
+            typeof name === 'string' ? new Task(name, taskDefinition) : new Task(taskDefinition)
+        return this.task.addSubTask(task, progressInheritance).run(...args)
     }
 
     // ------------------------------------------------------------------------------------------------------------ //
@@ -212,39 +286,161 @@ export default class TaskContext<TResult = void, TArgs extends any[] = [], PMess
     addCleanupTask(
         cleanupTask: CleanupTaskDefinition<TResult, TArgs, IResult>
     ): CleanupTask<TResult, TArgs, IResult>
-
     addCleanupTask(
-        name: string,
-        cleanupTask: CleanupTaskDefinition<TResult, TArgs, IResult>
-    ): CleanupTask<TResult, TArgs, IResult>
-
-    addCleanupTask(
-        progressInheritanceScale: ProgressInheritanceScale,
-        cleanupTask: CleanupTaskDefinition<TResult, TArgs, IResult>
-    ): CleanupTask<TResult, TArgs, IResult>
-
-    addCleanupTask(
-        progressInheritanceScale: ProgressInheritanceScale,
         name: string,
         cleanupTask: CleanupTaskDefinition<TResult, TArgs, IResult>
     ): CleanupTask<TResult, TArgs, IResult>
     addCleanupTask (
-        arg0: CleanupTaskDefinition<TResult, TArgs, IResult>|string|ProgressInheritanceScale,
-        arg1?: CleanupTaskDefinition<TResult, TArgs, IResult>|string,
-        arg2?: CleanupTaskDefinition<TResult, TArgs, IResult>
+        arg0: CleanupTaskDefinition<TResult, TArgs, IResult>|string,
+        arg1?: CleanupTaskDefinition<TResult, TArgs, IResult>,
     ): CleanupTask<TResult, TArgs, IResult> {
         if(isTaskDefinition(arg0)) {
             return this.task.addCleanupTask(arg0)
         } else if(isTaskDefinition(arg1)) {
-            if(isProgressInheritance(arg0)) {
-                return this.task.addCleanupTask(arg1, arg0)
-            } else {
-                return this.task.addCleanupTask(arg1, undefined, arg0 as string)
-            }
-        } else if(isTaskDefinition(arg2)) {
-            return this.task.addCleanupTask(arg2, arg0 as ProgressInheritanceScale, arg1 as string)
+            return this.task.addCleanupTask(arg0 as string, arg1)
+        } else {
+            throw new TypeError(`No CleanupTaskDefinition provided.`)
         }
-        throw new TypeError(`Invalid TaskContext.addCleanupTask(...) call.`)
     }
 
+    // ------------------------------------------------------------------------------------------------------------ //
+    // ---- CHILD PROCESSES --------------------------------------------------------------------------------------- //
+    // ------------------------------------------------------------------------------------------------------------ //
+
+    protected getChildProcess<PData extends {} = {}>(
+        arg0: string|ChildProcessProvider<PData, PMessage, IResult>|ProgressInheritance,
+        arg1?: string|ChildProcessProvider<PData, PMessage, IResult>|ChildProcessOptions<PData, PMessage, IResult>,
+        arg2?: string|ChildProcessOptions<PData, PMessage, IResult>,
+        ...otherArgs: string[]
+    ): {
+        childProcess: ChildProcess<PData, PMessage, IResult>,
+        args: string[],
+        progressInheritance: ProgressInheritance|undefined
+    } {
+        // Get the arguments
+        let executable: string|undefined
+        let provider: ChildProcessProvider<PData, PMessage, IResult>|undefined
+        let options: ChildProcessOptions<PData, PMessage, IResult>|undefined
+        let progressInheritance: ProgressInheritance|undefined
+        const args: string[] = []
+        if(isProgressInheritance(arg0)) {
+            progressInheritance = arg0
+            if(typeof arg1 === 'string') {
+                executable = arg1
+                if(typeof arg2 !== 'string') {
+                    options = arg2
+                } else {
+                    args.push(arg2)
+                }
+                args.push(...otherArgs)
+            } else if(arg1 !== undefined && 'executable' in arg1 && executable !== undefined) {
+                provider = arg1
+                if(typeof arg2 === 'string') {
+                    args.push(arg2, ...otherArgs)
+                }
+            }
+        } else {
+            if(typeof arg0 === 'string') {
+                executable = arg0
+                if(typeof arg1 !== 'string') {
+                    options = arg1
+                } else {
+                    args.push(arg1)
+                }
+
+                if(typeof arg2 === 'string') {
+                    args.push(arg2, ...otherArgs)
+                }
+            } else if(arg0 !== undefined && 'executable' in arg0 && executable !== undefined) {
+                provider = arg0
+                if(typeof arg1 === 'string') {
+                    args.push(arg1)
+                    if(typeof arg2 === 'string') {
+                        args.push(arg2, ...otherArgs)
+                    }
+                }
+            }
+        }
+
+        // Getting the child process
+        let childProcess: ChildProcess<PData, PMessage, IResult>
+        if(provider !== undefined) {
+            childProcess = provider instanceof Task && provider.state === TaskState.READY
+                ? provider as ChildProcess<PData, PMessage, IResult> :
+                new TaskContext.ChildProcess(provider)
+        } else if(executable !== undefined) {
+            childProcess = new TaskContext.ChildProcess(executable, options)
+        } else {
+            throw new TypeError(`No executable or ChildProcessProvider provided.`)
+        }
+
+        // Return the result
+        return {childProcess, args, progressInheritance}
+    }
+
+    addChildProcess<PData extends {} = {}>(
+        childProcess: ChildProcessProvider<PData, PMessage, IResult>
+    ): ChildProcess<PData, PMessage, IResult>
+    addChildProcess<PData extends {} = {}>(
+        executable: string,
+        options?: ChildProcessOptions<PData, PMessage, IResult>
+    ): ChildProcess<PData, PMessage, IResult>
+    addChildProcess<PData extends {} = {}>(
+        progressInheritance: ProgressInheritance,
+        childProcess: ChildProcessProvider<PData, PMessage, IResult>
+    ): ChildProcess<PData, PMessage, IResult>
+    addChildProcess<PData extends {} = {}>(
+        progressInheritance: ProgressInheritance,
+        executable: string,
+        options?: ChildProcessOptions<PData, PMessage, IResult>
+    ): ChildProcess<PData, PMessage, IResult>
+    addChildProcess<PData extends {} = {}>(
+        arg0: string|ChildProcessProvider<PData, PMessage, IResult>|ProgressInheritance,
+        arg1?: string|ChildProcessProvider<PData, PMessage, IResult>|ChildProcessOptions<PData, PMessage, IResult>,
+        arg2?: ChildProcessOptions<PData, PMessage, IResult>
+    ): ChildProcess<PData, PMessage, IResult> {
+        const {childProcess, progressInheritance} = this.getChildProcess(arg0, arg1, arg2)
+        this.task.addSubTask(childProcess, progressInheritance)
+        return childProcess
+    }
+
+    runChildProcess<PData extends {} = {}>(
+        childProcess: ChildProcessProvider<PData, PMessage, IResult>,
+        ...args: string[]
+    ): ChildProcess<PData, PMessage, IResult>
+    runChildProcess<PData extends {} = {}>(
+        executable: string,
+        options?: ChildProcessOptions<PData, PMessage, IResult>,
+        ...args: string[]
+    ): ChildProcess<PData, PMessage, IResult>
+    runChildProcess<PData extends {} = {}>(
+        executable: string,
+        ...args: string[]
+    ): ChildProcess<PData, PMessage, IResult>
+    runChildProcess<PData extends {} = {}>(
+        progressInheritance: ProgressInheritance,
+        childProcess: ChildProcessProvider<PData, PMessage, IResult>,
+        ...args: string[]
+    ): ChildProcess<PData, PMessage, IResult>
+    runChildProcess<PData extends {} = {}>(
+        progressInheritance: ProgressInheritance,
+        executable: string,
+        options?: ChildProcessOptions<PData, PMessage, IResult>,
+        ...args: string[]
+    ): ChildProcess<PData, PMessage, IResult>
+    runChildProcess<PData extends {} = {}>(
+        progressInheritance: ProgressInheritance,
+        executable: string,
+        ...args: string[]
+    ): ChildProcess<PData, PMessage, IResult>
+    runChildProcess<PData extends {} = {}>(
+        arg0: string|ChildProcessProvider<PData, PMessage, IResult>|ProgressInheritance,
+        arg1?: string|ChildProcessProvider<PData, PMessage, IResult>|ChildProcessOptions<PData, PMessage, IResult>,
+        arg2?: string|ChildProcessOptions<PData, PMessage, IResult>,
+        ...otherArgs: string[]
+    ): ChildProcess<PData, PMessage, IResult> {
+        const {childProcess, progressInheritance, args} = this.getChildProcess(arg0, arg1, arg2, ...otherArgs)
+        this.task.addSubTask(childProcess, progressInheritance).run(...args)
+        return childProcess
+    }
 }

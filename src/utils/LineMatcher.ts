@@ -1,10 +1,8 @@
-import ChildProcessTaskTemplate, {
-    ChildProcessReadableStream,
-    LineHandler,
-    ChildProcessOptions
-} from '../templates/ChildProcessTaskTemplate'
 import {ArgArray, argAsArray} from './arguments'
-import ChildProcessTaskContext from './ChildProcessTaskContext'
+import ChildProcess from '../ChildProcess'
+import ChildProcessContext from './ChildProcessContext'
+import {LineHandler, ChildProcessReadableStream} from '../types'
+import Callable from './Callable'
 
 export interface LineMatch {
     line: string
@@ -17,47 +15,51 @@ export type LineMatcherFunction = (line: string) => LineMatch|null
 export type LineMatcherDefinition = string|RegExp|LineMatcherFunction
 
 export type LineMatcherHandler<
-    RData extends {} = {},
-    POptions extends ChildProcessOptions = ChildProcessOptions,
-    PMessage = string,
+    PData extends {} = {},
+    PMessage = any,
     IResult = any
-    > = (this: ChildProcessTaskTemplate<RData, POptions, PMessage, IResult>,
-         context: ChildProcessTaskContext<RData, POptions, PMessage, IResult>,
+    > = (this: ChildProcess<PData, PMessage, IResult>,
+         context: ChildProcessContext<PData, PMessage, IResult>,
          match: LineMatch, stream: ChildProcessReadableStream) => void
 
 export interface LineMatcherEntry<
-    RData extends {} = {},
-    POptions extends ChildProcessOptions = ChildProcessOptions,
-    PMessage = string,
+    PData extends {} = {},
+    PMessage = any,
     IResult = any
     > {
-    matcher: LineMatcherFunction,
+    matcher: LineMatcherFunction
     streams: null|ChildProcessReadableStream[]
-    handler: LineMatcherHandler<RData, POptions, PMessage, IResult>
+    handler: LineMatcherHandler<PData, PMessage, IResult>
 }
 
-export interface Options {
+export interface Options<PData extends {} = {}, PMessage = any, IResult = any> {
     neverParseStringToRegex?: boolean
+    fallbackHandler?: LineHandler<PData, PMessage, IResult>
 }
 
-export class LineMatcher<
-    RData extends {} = {},
-    POptions extends ChildProcessOptions = ChildProcessOptions,
-    PMessage = string,
-    IResult = any
-    > {
+export class LineMatcher<PData extends {} = {}, PMessage = any, IResult = any> extends Callable<LineHandler> {
 
     // ------------------------------------------------------------------------------------------------------------ //
     // ---- INITIALISATION ---------------------------------------------------------------------------------------- //
     // ------------------------------------------------------------------------------------------------------------ //
 
-    protected entries: LineMatcherEntry<RData, POptions, PMessage, IResult>[]
+    protected entries: LineMatcherEntry<PData, PMessage, IResult>[]
+    protected fallbackHandler?: LineHandler<PData, PMessage, IResult>
 
     readonly neverParseStringToRegex: boolean
 
     constructor(options: Options = {}) {
+        let self: this
+        super(function (
+            this: ChildProcess<PData, PMessage, IResult>,
+            context: ChildProcessContext<PData, PMessage, IResult>,
+            stream: ChildProcessReadableStream,
+            line: string
+        ) { self.lineHandler.call(this, context, stream, line) })
+        self = this
         this.entries = []
         this.neverParseStringToRegex = !!options.neverParseStringToRegex
+        this.fallbackHandler = options.fallbackHandler
     }
 
     // ------------------------------------------------------------------------------------------------------------ //
@@ -65,9 +67,9 @@ export class LineMatcher<
     // ------------------------------------------------------------------------------------------------------------ //
 
     add(matcher: LineMatcherDefinition,
-        handler?: LineMatcherHandler<RData, POptions, PMessage, IResult>,
-        streams?: ArgArray<ChildProcessReadableStream>): LineMatcherEntry<RData, POptions, PMessage, IResult> {
-        const result: LineMatcherEntry<RData, POptions, PMessage, IResult> = {
+        handler?: LineMatcherHandler<PData, PMessage, IResult>,
+        streams?: ArgArray<ChildProcessReadableStream>): LineMatcherEntry<PData, PMessage, IResult> {
+        const result: LineMatcherEntry<PData, PMessage, IResult> = {
             matcher: this.getMatcherFunction(matcher),
             handler: handler || (() => { return }),
             streams: argAsArray(streams, null),
@@ -87,19 +89,32 @@ export class LineMatcher<
         }).filter((math) => math !== null ) as LineMatch[]
     }
 
-    get lineHandler(): LineHandler<RData, POptions, PMessage, IResult> {
+    setFallback(handler: LineHandler<PData, PMessage, IResult>) {
+        this.fallbackHandler = handler
+    }
+
+    get lineHandler(): LineHandler<PData, PMessage, IResult> {
         const entries = this.entries
-        return function (context: ChildProcessTaskContext<RData, POptions, PMessage, IResult>,
+        const fallbackHandler = this.fallbackHandler
+        return function (this: ChildProcess<PData, PMessage, IResult>,
+                         context: ChildProcessContext<PData, PMessage, IResult>,
                          stream: ChildProcessReadableStream,
                          line: string) {
+            let hasHandler: boolean = false
             entries.forEach((entry) => {
                 if(entry.streams === null || entry.streams.indexOf(stream) >= 0) {
                     const match = entry.matcher(line)
                     if(match !== null) {
                         entry.handler.call(this, context, match, stream)
+                        hasHandler = true
                     }
                 }
             })
+
+            // Call fallbackHandler if none of the handlers could handle the provides line.
+            if(!hasHandler && fallbackHandler) {
+                fallbackHandler.call(this, context, stream, line)
+            }
         }
     }
 
@@ -153,7 +168,7 @@ export class LineMatcher<
 
     protected getRegexMatcherFunction(matcher: RegExp): LineMatcherFunction {
         return (line: string) => {
-            const result = line.match(matcher)
+            const result = matcher.exec(line)
 
             if(result === null) {
                 return null

@@ -104,7 +104,7 @@ describe('Error behavior', () => {
 
         await s3
         const s3Interrupter = jest.fn(_flag => { return true })
-        s3.context.setInterrupter(s3Interrupter)
+        s3.context.addInterrupter(s3Interrupter)
 
         await expect(t).rejects.toThrow(e)
         expect(t.isFailed).toBeTruthy()

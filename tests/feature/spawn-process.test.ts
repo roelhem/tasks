@@ -1,55 +1,17 @@
-import task, {SpawnProcessTaskTemplate} from '../../src'
-import {WritableManager} from '../../src/utils'
-import {Hooks} from '../../src/templates/ChildProcessTaskTemplate'
-import {LineMatcher} from '../../src/utils'
-
-function createMockHooks(name: string = '', log: boolean = false): Hooks {
-    const prefix = name ? `${name}:` : ''
-    return {
-        onClose: jest.fn((code: number, signal: NodeJS.Signals) => {
-            if(log) { console.log(prefix, 'CLOSE', code, signal) }
-        }),
-        onDisconnect: jest.fn(() => {
-            if(log) { console.log(prefix, 'DISCONNECT') }
-        }),
-        onError: jest.fn((error: Error) => {
-            if(log) { console.log(prefix, 'ERROR', error) }
-        }),
-        onExit: jest.fn((code: number|null, signal: NodeJS.Signals|null) => {
-            if(log) { console.log(prefix, 'EXIT', code, signal) }
-        }),
-        onMessage: jest.fn((message: any, sendHandle: any) => {
-            if(log) { console.log(prefix, 'MESSAGE', message, sendHandle) }
-        }),
-        onData: jest.fn((stream: string, chunk: string|Buffer) => {
-            if(log) { console.log(prefix, `GOT DATA FROM '${stream}': `, chunk) }
-        }),
-        onLine: jest.fn((stream: string, line: string) => {
-            if(log) { console.log(prefix, `GOT A LINE FROM '${stream}': `, line) }
-        }),
-        onSendAvailable: jest.fn((stream: string, send: WritableManager) => {
-            if(log) { console.log(prefix, `SEND AVAILABLE FROM '${stream}': `, send) }
-        }),
-    }
-}
+import task, {LineMatcher} from '../../src'
 
 describe('Usage with Spawn - ChildProcesses', () => {
 
-    const echo = SpawnProcessTaskTemplate.create('echo')
-    const node = SpawnProcessTaskTemplate.create(process.execPath)
-
     test('Echo a string', async () => {
-        const a = new echo({ prefixArgs: ['prefixArg'] })
+        const lineListener = jest.fn((line, stream) => console.log(`GOT LINE FROM ${stream}:`, line))
 
-        const hooks = createMockHooks('Echo Task')
+        await task.createChildProcess('echo', {
+            prependArgs: ['prefixArg'],
+        }).on('line', lineListener).run('\nargFromTask', '\nlastArg')
 
-        await task.run(a, {
-            args: ['\nargFromTask', '\nlastArg'],
-        }, hooks)
-
-        expect(hooks.onLine).toBeCalledWith('stdout', 'prefixArg ')
-        expect(hooks.onLine).toBeCalledWith('stdout', 'argFromTask ')
-        expect(hooks.onLine).toBeCalledWith('stdout', 'lastArg')
+        expect(lineListener).toBeCalledWith('prefixArg ', 'stdout')
+        expect(lineListener).toBeCalledWith('argFromTask ', 'stdout')
+        expect(lineListener).toBeCalledWith('lastArg', 'stdout')
     })
 
     test('With line matcher', async () => {
@@ -62,11 +24,9 @@ describe('Usage with Spawn - ChildProcesses', () => {
         const containsE = jest.fn(() => { return })
         lineMatcher.add(/E/, containsE)
 
-        const a = new echo({ lineHandlers: lineMatcher })
-
-        await task.run(a, {
-            args: ['Ab\nAc\nD\nA\ndA'],
-        })
+        await task.runChildProcess('echo', {
+            lineHandlers: [lineMatcher]
+        }, 'Ab\nAc\nD\nA\ndA')
 
         expect(startsWithA).toBeCalledTimes(3)
         expect(endsWithA).toBeCalledTimes(2)
@@ -74,11 +34,14 @@ describe('Usage with Spawn - ChildProcesses', () => {
     })
 
     test('Get node version', async () => {
-        const a = new node({ prefixArgs: ['--version'], inheritEnv: true })
-        const hooks = createMockHooks()
-        await task.run(a, {}, hooks)
+        const lineListener = jest.fn((line, stream) => console.log(`GOT LINE FROM ${stream}:`, line))
 
-        expect(hooks.onLine).toBeCalled()
+        await task.runChildProcess(process.execPath, {
+            prependArgs: ['--version'],
+            inheritEnv: true
+        }, '\nargFromTask', '\nlastArg').on('line', lineListener)
+
+        expect(lineListener).toBeCalled()
     })
 
     test('Environment variables', async () => {
@@ -86,18 +49,17 @@ describe('Usage with Spawn - ChildProcesses', () => {
         const handleLine = jest.fn((context, stream, line) => {
             lines.push(line)
         })
-        const a = new node({
+
+        await task.runChildProcess(process.execPath, {
             inheritEnv: false,
-            extraEnv: { PATH: process.env.PATH, TEST_ENV_A: 'A', TEST_ENV_B: undefined },
-            prefixArgs: ['-e'],
-            lineHandlers: handleLine,
-        })
-        const code = `
+            env: { PATH: process.env.PATH, TEST_ENV_A: 'A', TEST_ENV_B: undefined },
+            prependArgs: ['-e'],
+            lineHandlers: [handleLine],
+        }, `
             Object.entries(process.env).forEach(function (value) {
                 console.log(value[0] + ': ' + value[1])
             })
-        `
-        await task.run(a, { args: [code]})
+        `)
 
         expect(handleLine).toBeCalled()
         expect(lines).toContain(`PATH: ${process.env.PATH}`)
@@ -109,16 +71,14 @@ describe('Usage with Spawn - ChildProcesses', () => {
         const handleLine = jest.fn((context, stream, line) => {
             lines.push(line)
         })
-        const a = new node({
-            prefixArgs: ['-e'],
-            lineHandlers: handleLine,
-        })
-        const code = `
+        await task.runChildProcess(process.execPath, {
+            prependArgs: ['-e'],
+            lineHandlers: [handleLine],
+        }, `
             process.argv.forEach(function (value) {
                 console.log(value)
             })
-        `
-        await task.run(a, { args: [code, 'a', 'abc cde', '3']})
+        `, 'a', 'abc cde', '3')
 
         expect(handleLine).toBeCalled()
         expect(lines).toContain('a')
@@ -126,27 +86,28 @@ describe('Usage with Spawn - ChildProcesses', () => {
         expect(lines).toContain('3')
     })
 
-    test.skip('Env inheritance', async () => {
+    test('Env inheritance', async () => {
         const lineMatcher = new LineMatcher<NodeJS.ProcessEnv>()
-        lineMatcher.add(/^(?<key>[a-zA-Z0-9_]]+): (?<value>.*)/, (context, match) => {
+        lineMatcher.add(/^(?<key>[a-zA-Z0-9_]+): (?<value>.*)/, (context, match) => {
             const key = match.groups.key as string
             const value = match.groups.value as string
             context.setData(key, value)
         })
-
-        const nodeExecute = new node({
-            prefixArgs: ['-e'],
-            extraEnv: {MY_A: 'a', MY_C:'0'},
-            lineHandlers: lineMatcher,
+        lineMatcher.setFallback((context, stream, line) => {
+            console.log(`FALLBACK LINE on ${stream}:`, line)
         })
-        const code = `
+
+        const result = await task.runChildProcess(process.execPath, {
+            prependArgs: ['-e'],
+            env: {MY_A: 'a', MY_B:'b', MY_C:'c'},
+            lineHandlers: [lineMatcher],
+        },  `
             Object.entries(process.env).forEach(function (value) {
                 console.log(value[0] + ': ' + value[1])
             })
-        `
+        `)
 
-        const result = await task.run(nodeExecute, { args: [code], env: {MY_B:'b', MY_C:'c'} })
-        expect(result.data).toEqual({...process.env, MY_A: 'a', MY_B: 'b', MY_C:'c'})
+        expect(result.data).toMatchObject({...process.env, MY_A: 'a', MY_B: 'b', MY_C:'c'})
     })
 
     test('Tracking the progress', async () => {
@@ -167,9 +128,10 @@ describe('Usage with Spawn - ChildProcesses', () => {
 
         const progressUpdate = jest.fn((_p, _t, _m) => { return })
         const lines = ['first line', '1', 'total 10', '3', 'Some string', '4 A', '5', '9 B', '10 D', 'We are done!']
-        const t = task.run(new echo({ lineHandlers: lineMatcher }), { args: [lines.join('\n')] })
-        t.on('progressUpdate', progressUpdate)
-        await t
+
+        await task.runChildProcess('echo', {
+            lineHandlers: [lineMatcher]
+        }, lines.join('\n')).on('progressUpdate', progressUpdate)
 
         expect(progressUpdate).toBeCalled()
         expect(progressUpdate).toBeCalledWith(1, undefined, undefined)
@@ -193,16 +155,19 @@ describe('Usage with Spawn - ChildProcesses', () => {
             })
         })
 
-        const echoWithData = SpawnProcessTaskTemplate.create<{a: number, b:number, lastB: string}>('echo')
-        const template = new echoWithData({ lineHandlers: lineMatcher })
-
-        const a = await task.run(template, { args: ['A\n\nA\nC'] })
+        const a = await (task.runChildProcess<{a: number, b:number, lastB: string}>('echo', {
+            lineHandlers: [lineMatcher]
+        }, 'A\n\nA\nC'))
         expect(a.data).toEqual({a: 2})
 
-        const b = await task.run(template, { args: ['A\nB\nBla\nC'] })
+        const b = await (task.runChildProcess<{a: number, b:number, lastB: string}>('echo', {
+            lineHandlers: [lineMatcher]
+        }, 'A\nB\nBla\nC'))
         expect(b.data).toEqual({a: 1, b: 2, lastB: 'Bla'})
 
-        const c = await task.run(template, {})
+        const c = await (task.runChildProcess<{a: number, b:number, lastB: string}>('echo', {
+            lineHandlers: [lineMatcher]
+        }))
         expect(c.data).toEqual({})
     })
 })
