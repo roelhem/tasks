@@ -10,8 +10,17 @@ import {isTaskDefinition} from './utils'
 import ChildProcess from './ChildProcess'
 import Command from './Command'
 import {Argv} from 'yargs'
+import Callable from './utils/Callable'
 
-export default class Facade<FPMessage = any, FIResult = any, FGArgs extends {} = {}> {
+export default class Facade<FPMessage = any, FIResult = any, FGArgs extends {} = {}> extends Callable<{
+    <TResult = any, TArgs extends any[] = [], PMessage = FPMessage, IResult = FIResult>(
+        task: TaskDefinition<TResult, TArgs, PMessage, IResult>
+    ): Task<TResult, TArgs, PMessage, IResult>
+    <TResult = any, TArgs extends any[] = [], PMessage = FPMessage, IResult = FIResult>(
+        name: string,
+        task: TaskDefinition<TResult, TArgs, PMessage, IResult>
+    ): Task<TResult, TArgs, PMessage, IResult>
+}> {
 
     // ------------------------------------------------------------------------------------------------------------ //
     // ---- STATIC CONSTANTS -------------------------------------------------------------------------------------- //
@@ -30,6 +39,14 @@ export default class Facade<FPMessage = any, FIResult = any, FGArgs extends {} =
     static readonly INTERRUPT_FROM_CHILD =   TaskInterruptionFlag.FROM_CHILD as const
     static readonly INTERRUPT_FROM_FAILURE = TaskInterruptionFlag.FROM_FAILURE as const
     static readonly INTERRUPT_FORCE =        TaskInterruptionFlag.FORCE as const
+
+    // ------------------------------------------------------------------------------------------------------------ //
+    // ---- INITIALISATION ---------------------------------------------------------------------------------------- //
+    // ------------------------------------------------------------------------------------------------------------ //
+
+    constructor() {
+        super('create')
+    }
 
     // ------------------------------------------------------------------------------------------------------------ //
     // ---- CREATE/RUN TASK --------------------------------------------------------------------------------------- //
