@@ -1,5 +1,5 @@
 import {Task} from './Task'
-import {Arguments, CommandModule, CommandBuilder, Options, Argv} from 'yargs'
+import {Arguments, CommandModule, CommandBuilder, Options} from 'yargs'
 import * as yargs from 'yargs'
 import {CommandDescription, CommandExitOptions, CommandExitState, CommandProvider} from './types'
 
@@ -23,7 +23,6 @@ implements CommandProvider<CResult, CArgs, GArgs, PMessage, IResult>, CommandMod
     hidden: boolean
     skipCleanup: boolean
     exit: CommandExitOptions
-    yargs: Argv
 
     constructor(description: CommandDescription<CResult, CArgs, GArgs, PMessage, IResult>)
     constructor(command: string, description: CommandDescription<CResult, CArgs, GArgs, PMessage, IResult>)
@@ -51,7 +50,6 @@ implements CommandProvider<CResult, CArgs, GArgs, PMessage, IResult>, CommandMod
         this.build = description.build || {}
         this.skipCleanup = !!description.skipCleanup
         this.exit = description.exit === undefined ? true : description.exit
-        this.yargs = description.yargs || yargs
     }
 
     // ------------------------------------------------------------------------------------------------------------ //
@@ -138,7 +136,7 @@ implements CommandProvider<CResult, CArgs, GArgs, PMessage, IResult>, CommandMod
 
         // Exit with yargs when an error was given, exit with process.exit otherwise.
         if(error) {
-            this.yargs.exit(exitCode, error)
+            yargs.exit(exitCode, error)
         } else {
             process.exit(exitCode)
         }

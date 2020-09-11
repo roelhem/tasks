@@ -187,7 +187,6 @@ export interface CommandOptions<CResult = any, CArgs extends {} = {}, GArgs exte
     hidden?: boolean
     skipCleanup?: boolean
     exit?: CommandExitOptions<CResult>
-    yargs?: Argv
 }
 
 // -------------------------------------------------------------------------------------------------------------- //

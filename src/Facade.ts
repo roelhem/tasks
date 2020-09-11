@@ -1,17 +1,17 @@
 import {
     ChildProcessOptions,
-    ChildProcessProvider,
-    TaskConstructorFunction,
+    ChildProcessProvider, CommandDescription,
     TaskDefinition,
     TaskInterruptionFlag,
     TaskState
 } from './types'
-import Callable from './utils/Callable'
 import {Task} from './Task'
 import {isTaskDefinition} from './utils'
 import ChildProcess from './ChildProcess'
+import Command from './Command'
+import {Argv} from 'yargs'
 
-export default class Facade<FPMessage = any, FIResult = any> extends Callable<TaskConstructorFunction> {
+export default class Facade<FPMessage = any, FIResult = any, FGArgs extends {} = {}> {
 
     // ------------------------------------------------------------------------------------------------------------ //
     // ---- STATIC CONSTANTS -------------------------------------------------------------------------------------- //
@@ -30,14 +30,6 @@ export default class Facade<FPMessage = any, FIResult = any> extends Callable<Ta
     static readonly INTERRUPT_FROM_CHILD =   TaskInterruptionFlag.FROM_CHILD as const
     static readonly INTERRUPT_FROM_FAILURE = TaskInterruptionFlag.FROM_FAILURE as const
     static readonly INTERRUPT_FORCE =        TaskInterruptionFlag.FORCE as const
-
-    // ------------------------------------------------------------------------------------------------------------ //
-    // ---- INITIALISATION ---------------------------------------------------------------------------------------- //
-    // ------------------------------------------------------------------------------------------------------------ //
-
-    constructor() {
-        super('create')
-    }
 
     // ------------------------------------------------------------------------------------------------------------ //
     // ---- CREATE/RUN TASK --------------------------------------------------------------------------------------- //
@@ -130,6 +122,30 @@ export default class Facade<FPMessage = any, FIResult = any> extends Callable<Ta
             return this.createChildProcess(arg0).run()
         } else {
             throw new TypeError(`No ChildProcess provided.`)
+        }
+    }
+
+    // ------------------------------------------------------------------------------------------------------------ //
+    // ---- CREATE/ADD COMMANDS ----------------------------------------------------------------------------------- //
+    // ------------------------------------------------------------------------------------------------------------ //
+
+    createCommand<CResult=any, CArgs extends {}={}, GArgs extends {}=FGArgs, PMessage=FPMessage, IResult=FIResult> (
+        description: CommandDescription<CResult, CArgs, GArgs, PMessage, IResult>
+    ): Command<CResult, CArgs, GArgs, PMessage, IResult>
+    createCommand<CResult=any, CArgs extends {}={}, GArgs extends {}=FGArgs, PMessage=FPMessage, IResult=FIResult> (
+        command: string,
+        description: CommandDescription<CResult, CArgs, GArgs, PMessage, IResult>
+    ): Command<CResult, CArgs, GArgs, PMessage, IResult>
+    createCommand<CResult=any, CArgs extends {}={}, GArgs extends {}=FGArgs, PMessage=FPMessage, IResult=FIResult> (
+        arg0: string| CommandDescription<CResult, CArgs, GArgs, PMessage, IResult>,
+        arg1?: CommandDescription<CResult, CArgs, GArgs, PMessage, IResult>
+    ): Command<CResult, CArgs, GArgs, PMessage, IResult> {
+        if(typeof arg0 === 'string' && typeof arg1 === 'object') {
+            return new Command<CResult, CArgs, GArgs, PMessage, IResult>(arg0, arg1)
+        } else if(typeof arg0 === 'object') {
+            return new Command<CResult, CArgs, GArgs, PMessage, IResult>(arg0)
+        } else {
+            throw new TypeError(`No CommandDescription provided.`)
         }
     }
 
