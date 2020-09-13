@@ -333,7 +333,7 @@ export default class TaskContext<TResult = void, TArgs extends any[] = [], PMess
                     args.push(arg2)
                 }
                 args.push(...otherArgs)
-            } else if(arg1 !== undefined && 'executable' in arg1 && executable !== undefined) {
+            } else if(arg1 !== undefined && 'executable' in arg1 && arg1.executable !== undefined) {
                 provider = arg1
                 if(typeof arg2 === 'string') {
                     args.push(arg2, ...otherArgs)
@@ -351,7 +351,7 @@ export default class TaskContext<TResult = void, TArgs extends any[] = [], PMess
                 if(typeof arg2 === 'string') {
                     args.push(arg2, ...otherArgs)
                 }
-            } else if(arg0 !== undefined && 'executable' in arg0 && executable !== undefined) {
+            } else if(arg0 !== undefined && 'executable' in arg0 && arg0.executable !== undefined) {
                 provider = arg0
                 if(typeof arg1 === 'string') {
                     args.push(arg1)
