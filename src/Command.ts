@@ -137,8 +137,6 @@ implements CommandProvider<CResult, CArgs, GArgs, PMessage, IResult>, CommandMod
         // Exit with yargs when an error was given, exit with process.exit otherwise.
         if(error) {
             yargs.exit(exitCode, error)
-        } else {
-            process.exit(exitCode)
         }
     }
 
