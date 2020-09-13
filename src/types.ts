@@ -1,6 +1,6 @@
 import TaskContext from './utils/TaskContext'
 import {Task} from './Task'
-import {Arguments, Argv, CommandBuilder, Options as ArgOptions} from 'yargs'
+import {Arguments, CommandBuilder, Options as ArgOptions} from 'yargs'
 import {ChildProcess as BaseChildProcess, CommonOptions} from 'child_process'
 import ChildProcess from './ChildProcess'
 import ChildProcessContext from './utils/ChildProcessContext'
@@ -279,8 +279,9 @@ export type CommandExitOptions<CResult = any> = boolean | Partial<CommandExitCon
  *  - `execFile`: Uses `child_process.execFile`. (See: [Node.js documentation](https://nodejs.org/api/child_process.html#child_process_child_process_execfile_file_args_options_callback))
  *  - `fork`: Uses `child_process.fork`. (See: [Node.js documentation](https://nodejs.org/api/child_process.html#child_process_child_process_fork_modulepath_args_options))
  *  - `spawn`: Uses `child_process.spawn`. (See: [Node.js documentation](https://nodejs.org/api/child_process.html#child_process_child_process_spawn_command_args_options))
+ *  - `sudoExec`: Uses `sudo-prompt.exec`. (See: [sudo-prompt Github](https://github.com/jorangreef/sudo-prompt#readme))
  */
-export type ChildProcessType = 'exec'|'execFile'|'fork'|'spawn'
+export type ChildProcessType = 'exec'|'execFile'|'fork'|'spawn'|'sudoExec'
 
 export type ChildProcessSetup<PData extends {} = {}, PMessage = any, IResult = any> = (
     context: ChildProcessContext<PData, PMessage, IResult>,
@@ -316,6 +317,7 @@ export interface ChildProcessOptions<PData extends {} = {}, PMessage = any, IRes
     childProcessSetup?: ChildProcessSetup<PData, PMessage, IResult>
     childProcessTimeout?: number|null
     windowsVerbatimArguments?: boolean
+    icns?: string
     lineHandlers?: Iterable<LineHandler<PData, PMessage, IResult>>
 }
 

@@ -30,6 +30,9 @@ export default class ChildProcessError extends Error implements ExecException {
         this.signal = options.signal
         this.stderr = options.stderr
         this.stdout = options.stdout
+        this.name = this.constructor.name
+        this.message = this.childProcess ? `ChildProcessError for '${this.childProcess}': ${options.message}` :
+            options.message || `ChildProcessError.`
     }
 
     get exitCode(): number|undefined {

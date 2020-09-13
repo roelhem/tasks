@@ -76,4 +76,60 @@ describe('ChildProcess', () => {
 
     })
 
+    describe('Type "sudoExec"', () => {
+        test('Echo with sudo', async () => {
+            const p = new ChildProcess('echo', {
+                childProcessType: 'sudoExec',
+                processName: 'Allow This Prompt',
+            })
+            const result = await p.run('ABC')
+            expect(result.exitCode).toBe(0)
+        }, 60 * 1000)
+
+        test('Denied Prompts', async () => {
+            const p = new ChildProcess('echo', {
+                childProcessType: 'sudoExec',
+                processName: 'Deny This Prompt',
+            })
+            await expect(p.run('ABC')).rejects.toThrow()
+        }, 60 * 1000)
+
+        test('Throw Errors', async () => {
+            const p = new ChildProcess(process.execPath, {
+                prependArgs: ['-e'],
+                processName: 'Allow This Prompt',
+                childProcessType: 'sudoExec',
+            })
+            await expect(p.run(`throw new Error();`)).rejects.toThrow()
+        }, 60 * 1000)
+
+        test('Allow Thrown Error', async () => {
+            const p = new ChildProcess(process.execPath, {
+                prependArgs: ['-e'],
+                processName: 'Allow This Prompt',
+                childProcessType: 'sudoExec',
+                allowNonZeroExitCode: true,
+            })
+            const result = await p.run(`throw new Error();`)
+            console.log(result)
+            expect(result.exitCode).not.toBe(0)
+        }, 60 * 1000)
+
+        test('Show all environment variables', async () => {
+            const p = new ChildProcess(process.execPath, {
+                childProcessType: 'sudoExec',
+                prependArgs: ['-e'],
+                processName: 'Allow This Prompt',
+                env: {'A': 'HOI', 'B': 'false'}
+            })
+            const result = await p.run('console.log(JSON.stringify(process.env));')
+            console.log(result)
+            expect(result.stdout).not.toBe('string')
+            expect(JSON.parse(result.stdout as string)).toMatchObject({
+                'A': 'HOI',
+                'B': 'false'
+            })
+        }, 60 * 1000)
+    })
+
 })

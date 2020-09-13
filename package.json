@@ -43,6 +43,7 @@
     "typescript": "^3.9.7"
   },
   "dependencies": {
+    "sudo-prompt": "^9.2.1",
     "tslib": "^2.0.0",
     "yargs": "^15.4.1"
   }

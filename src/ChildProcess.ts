@@ -9,6 +9,7 @@ import {
     TaskInterruptionFlag,
 } from './types'
 import * as cp from 'child_process'
+import * as sudo from 'sudo-prompt'
 import {ExecException, MessageOptions} from 'child_process'
 import {Pipe, Readable, Writable} from 'stream'
 import ChildProcessContext from './utils/ChildProcessContext'
@@ -78,6 +79,7 @@ export default class ChildProcess<PData extends {} = {}, PMessage = any, IResult
     readonly uid?: number
     readonly shell: string|boolean
     readonly detached: boolean
+    readonly icns?: string
 
     readonly maxBuffer?: number
 
@@ -137,6 +139,7 @@ export default class ChildProcess<PData extends {} = {}, PMessage = any, IResult
         this.cwd = options.cwd
         this.gid = options.gid
         this.uid = options.uid
+        this.icns = options.icns
         this.detached = !!options.detached
         this.maxBuffer = options.maxBuffer
         this.encoding = options.encoding || ChildProcess.defaultEncoding
@@ -159,6 +162,16 @@ export default class ChildProcess<PData extends {} = {}, PMessage = any, IResult
                 this.lineHandlers.add(lineHandler)
             }
         }
+    }
+
+    // ------------------------------------------------------------------------------------------------------------ //
+    // ---- CONVENIENCE GETTERS ----------------------------------------------------------------------------------- //
+    // ------------------------------------------------------------------------------------------------------------ //
+
+    get envStrings(): {[key: string]: string} {
+        return Object.fromEntries(
+            Object.entries(this.env).filter((item): item is [string, string] => typeof item[1] === 'string')
+        )
     }
 
     // ------------------------------------------------------------------------------------------------------------ //
@@ -314,6 +327,30 @@ export default class ChildProcess<PData extends {} = {}, PMessage = any, IResult
                         this.initChildProcess(context, childProcess, resolve, reject)
                         break
                     }
+                    case 'sudoExec': {
+                        sudo.exec(this.getFullCommand(args), {
+                            env: this.envStrings,
+                            name: this.name,
+                            icns: this.icns,
+                        }, (error, stdout, stderr) => {
+                            if (error && !this.allowNonZeroExitCode) {
+                                reject(new ChildProcessError({
+                                    ...error,
+                                    stderr: stderr ? stderr.toString() : undefined,
+                                    stdout: stdout ? stdout.toString() : undefined,
+                                    childProcess: this,
+                                }))
+                            } else {
+                                resolve({
+                                    exitCode: error ? (error as any).code || (error as any).exitCode || 1 : 0,
+                                    exitSignal: error ? (error as any).signal || (error as any).exitSignal : undefined,
+                                    stderr: stderr ? stderr.toString() : undefined,
+                                    stdout: stdout ? stdout.toString() : undefined,
+                                })
+                            }
+                        })
+                        break
+                    }
                     default: {
                         reject(new Error(`ChildProcessType '${this.childProcessType}' not implemented.`))
                         break
@@ -371,7 +408,7 @@ export default class ChildProcess<PData extends {} = {}, PMessage = any, IResult
                 } else {
                     if(reject) {
                         reject(new ChildProcessError({
-                            message: `Process exit with non-zero code ${exitCode}`,
+                            message: `ChildProcess '${this.processName}' exit with non-zero code ${exitCode}`,
                             childProcess: this,
                             code: exitCode,
                             signal: exitSignal,
