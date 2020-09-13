@@ -76,7 +76,7 @@ describe('ChildProcess', () => {
 
     })
 
-    describe('Type "sudoExec"', () => {
+    describe.skip('Type "sudoExec"', () => {
         test('Echo with sudo', async () => {
             const p = new ChildProcess('echo', {
                 childProcessType: 'sudoExec',
