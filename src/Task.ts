@@ -12,6 +12,7 @@ import {
     TaskInterruptionFlag,
     TaskState
 } from './types'
+import { throttle } from 'throttle-debounce'
 import TaskContext from './utils/TaskContext'
 import {
     isNamedTaskProvider,
@@ -69,6 +70,8 @@ export class Task<TResult = any, TArgs extends any[] = [], PMessage = any, IResu
 
     static removeListenersWhenFinished: boolean = true
 
+    static defaultProgressThrottle: number = 100
+
     // ------------------------------------------------------------------------------------------------------------ //
     // ---- INITIALISATION ---------------------------------------------------------------------------------------- //
     // ------------------------------------------------------------------------------------------------------------ //
@@ -91,6 +94,13 @@ export class Task<TResult = any, TArgs extends any[] = [], PMessage = any, IResu
      * A function that will be called on the [[Task]] when the task is initialized.
      */
     taskSetup: (task: Task<TResult, TArgs, PMessage, IResult>) => void
+
+    /**
+     * Limits the amount of progress-updates.
+     *
+     * See: [throttle-debounce](https://www.npmjs.com/package/throttle-debounce)
+     */
+    readonly progressThrottle: number
 
     /**
      * Reference to the definition of this task.
@@ -158,6 +168,9 @@ export class Task<TResult = any, TArgs extends any[] = [], PMessage = any, IResu
         this._subTasks = []
         this._cleanupTasks = []
         this._cleaned = false
+
+        // Initialize the throttle
+        this.progressThrottle = Task.defaultProgressThrottle
 
         // Initialize the interrupters set
         this.interrupters = new Set()
@@ -487,8 +500,20 @@ export class Task<TResult = any, TArgs extends any[] = [], PMessage = any, IResu
             if(progressMessage !== undefined) {
                 this._lastProgressMessage = progressMessage
             }
-            this.emit('progressUpdate', this.currentProgress, this.totalProgress, this.lastProgressMessage)
+            this.emitProgressUpdate(this.currentProgress, this.totalProgress, this.lastProgressMessage)
         }
+    }
+
+    private _emitProgressUpdate?: (current: number, total?: number, message?: PMessage) => boolean
+    protected get emitProgressUpdate(): (current: number, total?: number, message?: PMessage) => boolean {
+        if(!this._emitProgressUpdate) {
+            const result = throttle(this.progressThrottle, (current, total, message) => {
+                return this.emit('progressUpdate', current, total, message)
+            })
+            this.once('finished', () => result.cancel())
+            this._emitProgressUpdate = result
+        }
+        return this._emitProgressUpdate
     }
 
     /**
@@ -498,7 +523,7 @@ export class Task<TResult = any, TArgs extends any[] = [], PMessage = any, IResu
         this._currentProgress = 0
         this._totalProgress = undefined
         this._lastProgressMessage = undefined
-        this.emit('progressUpdate', this.currentProgress, this.totalProgress, this.lastProgressMessage)
+        this.emitProgressUpdate(this.currentProgress, this.totalProgress, this.lastProgressMessage)
     }
 
     /**

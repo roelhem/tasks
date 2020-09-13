@@ -22,6 +22,14 @@ export interface TaskOptions<TResult = any, TArgs extends any[] = [], PMessage =
      * @param task The [[Task]] that was constructed.
      */
     taskSetup?(task: Task<TResult, TArgs, PMessage, IResult>): void
+
+    /**
+     * Limits the amount of 'progressUpdate'-events.
+     *
+     * See: [throttle-debounce](https://www.npmjs.com/package/throttle-debounce)
+     */
+    progressThrottle?: number
+
     /**
      * The name of the [[Task]]. Is mainly used for debug-purposes.
      */
@@ -338,10 +346,6 @@ export interface ChildProcessResult<PData extends {} = {}> {
     stdout: string|null
     stderr: string|null
 }
-
-export type ChildProcessLineHandler<PData extends {} = {}, PMessage = any, IResult = any> = (
-    this: ChildProcess<PData, PMessage, IResult>
-) => void
 
 export interface ChildProcessEvents extends TaskEvents {
     close(exitCode: number, exitSignal: NodeJS.Signals): void

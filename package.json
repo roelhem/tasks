@@ -43,7 +43,9 @@
     "typescript": "^3.9.7"
   },
   "dependencies": {
+    "@types/throttle-debounce": "^2.1.0",
     "sudo-prompt": "^9.2.1",
+    "throttle-debounce": "^2.3.0",
     "tslib": "^2.0.0",
     "yargs": "^15.4.1"
   }
