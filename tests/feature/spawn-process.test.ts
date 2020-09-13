@@ -131,7 +131,7 @@ describe('Usage with Spawn - ChildProcesses', () => {
 
         await task.runChildProcess('echo', {
             lineHandlers: [lineMatcher]
-        }, lines.join('\n')).on('progressUpdate', progressUpdate)
+        }, lines.join('\n')).setProgressThrottle(0).on('progressUpdate', progressUpdate)
 
         expect(progressUpdate).toBeCalled()
         expect(progressUpdate).toBeCalledWith(1, undefined, undefined)

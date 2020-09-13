@@ -100,7 +100,7 @@ export class Task<TResult = any, TArgs extends any[] = [], PMessage = any, IResu
      *
      * See: [throttle-debounce](https://www.npmjs.com/package/throttle-debounce)
      */
-    readonly progressThrottle: number
+    private _progressThrottle: number
 
     /**
      * Reference to the definition of this task.
@@ -170,7 +170,7 @@ export class Task<TResult = any, TArgs extends any[] = [], PMessage = any, IResu
         this._cleaned = false
 
         // Initialize the throttle
-        this.progressThrottle = Task.defaultProgressThrottle
+        this._progressThrottle = Task.defaultProgressThrottle
 
         // Initialize the interrupters set
         this.interrupters = new Set()
@@ -504,16 +504,42 @@ export class Task<TResult = any, TArgs extends any[] = [], PMessage = any, IResu
         }
     }
 
-    private _emitProgressUpdate?: (current: number, total?: number, message?: PMessage) => boolean
+    private _emitProgressUpdate?: throttle<(current: number, total?: number, message?: PMessage) => boolean>|
+        ((current: number, total?: number, message?: PMessage) => boolean)
     protected get emitProgressUpdate(): (current: number, total?: number, message?: PMessage) => boolean {
         if(!this._emitProgressUpdate) {
-            const result = throttle(this.progressThrottle, (current, total, message) => {
-                return this.emit('progressUpdate', current, total, message)
-            })
-            this.once('finished', () => result.cancel())
-            this._emitProgressUpdate = result
+            if(this._progressThrottle > 0) {
+                const result = throttle(this._progressThrottle, (current, total, message) => {
+                    return this.emit('progressUpdate', current, total, message)
+                })
+                this._emitProgressUpdate = result
+            } else {
+                this._emitProgressUpdate = (current, total, message) => {
+                    return this.emit('progressUpdate', current, total, message)
+                }
+            }
+
         }
         return this._emitProgressUpdate
+    }
+
+    setProgressThrottle(delay: number): this {
+        this._progressThrottle = delay
+        if(this._emitProgressUpdate
+            && 'cancel' in this._emitProgressUpdate
+            && typeof this._emitProgressUpdate.cancel === 'function') {
+            this._emitProgressUpdate.cancel()
+        }
+        this._emitProgressUpdate = undefined
+        return this
+    }
+
+    get progressThrottle(): number {
+        return this._progressThrottle
+    }
+
+    set progressThrottle(newValue: number) {
+        this.setProgressThrottle(newValue)
     }
 
     /**
@@ -703,6 +729,9 @@ export class Task<TResult = any, TArgs extends any[] = [], PMessage = any, IResu
 
         // Setting the parent on the SubTask to this task.
         task._parentTask = this as any
+
+        // Disable the progress throttle
+        task.setProgressThrottle(0)
 
         // Inherit some events
         this.inheritFailures(task)

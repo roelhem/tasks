@@ -8,7 +8,7 @@ describe('Usages with progress', () => {
         const t = task(a)
 
         const pl = jest.fn((_p: number, _pt?: number , _m?: string) => { return })
-        t.on('progressUpdate', pl)
+        t.on('progressUpdate', pl).setProgressThrottle(0)
         expect(pl.mock.calls).toHaveLength(0)
 
         t.run()
@@ -108,7 +108,7 @@ describe('Usages with progress', () => {
             context.setProgressTotal(3)
             await context.runSubTask([0, 2], a)
             await context.runSubTask([2, 3], b)
-        })
+        }).setProgressThrottle(0)
 
         t.run()
         expect(t.isRunning).toBeTruthy()
