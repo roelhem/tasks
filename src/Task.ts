@@ -730,8 +730,8 @@ export class Task<TResult = any, TArgs extends any[] = [], PMessage = any, IResu
         // Setting the parent on the SubTask to this task.
         task._parentTask = this as any
 
-        // Disable the progress throttle
-        task.setProgressThrottle(0)
+        // Inherit the progressThrottle
+        task.setProgressThrottle(this.progressThrottle)
 
         // Inherit some events
         this.inheritFailures(task)
