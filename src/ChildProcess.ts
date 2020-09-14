@@ -342,7 +342,7 @@ export default class ChildProcess<PData extends {} = {}, PMessage = any, IResult
                                     stderr: stderr ? stderr.toString() : undefined,
                                     stdout: stdout ? stdout.toString() : undefined,
                                     childProcess: this,
-                                }))
+                                }, error))
                             } else {
                                 resolve({
                                     exitCode: error ? (error as any).code || (error as any).exitCode || 1 : 0,

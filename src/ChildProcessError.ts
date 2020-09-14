@@ -20,8 +20,8 @@ export default class ChildProcessError extends Error implements ExecException {
         signal?: NodeJS.Signals
         stderr?: string
         stdout?: string
-    }) {
-        super(options.message)
+    }, previous?: Error) {
+        super(previous ? previous.message : options.message)
         const childProcess = options.childProcess
         this.childProcess = childProcess
         this.cwd = options.cwd || (childProcess ? childProcess.cwd : undefined)
@@ -31,8 +31,11 @@ export default class ChildProcessError extends Error implements ExecException {
         this.stderr = options.stderr
         this.stdout = options.stdout
         this.name = this.constructor.name
-        this.message = this.childProcess ? `ChildProcessError for '${this.childProcess}': ${options.message}` :
+        const messageName = previous ? previous.name : 'ChildProcessError'
+        this.message = this.childProcess ? `${messageName} for '${this.childProcess}': ${this.message}` :
             options.message || `ChildProcessError.`
+
+        this.stack = `${this.stack}${previous ? `\n\nPREVIOUS ERROR: \n\n${previous.stack}` : ''}`
     }
 
     get exitCode(): number|undefined {
