@@ -7,7 +7,7 @@ import {
     ProgressInheritance,
     TaskDefinition,
     TaskEvents,
-    TaskFunction,
+    TaskFunction, TaskInfo,
     TaskInterrupter,
     TaskInterruptionFlag,
     TaskState
@@ -1000,6 +1000,29 @@ export class Task<TResult = any, TArgs extends any[] = [], PMessage = any, IResu
             res += subTask.getSubTaskTree(i, indent + 1, indentString)
         }
         return res
+    }
+
+    // ------------------------------------------------------------------------------------------------------------ //
+    // ---- Getting TaskInfo and IMPLEMENTING: JsonConvertible ---------------------------------------------------- //
+    // ------------------------------------------------------------------------------------------------------------ //
+
+    getTaskInfo(): TaskInfo<TResult, TArgs, PMessage, IResult> {
+        return {
+            type: this.constructor.name,
+            name: this.name,
+            progressThrottle: this.progressThrottle,
+            state: this.state,
+            args: this.args,
+            result: this.result,
+            failureReason: this.failureReason,
+            interruptionResult: this.interruptionResult,
+            subTasks: this.subTasks.map((subTask) => subTask.getTaskInfo()),
+            cleanupTasks: this.cleanupTasks.map((cleanupTask) => cleanupTask.getTaskInfo()),
+        }
+    }
+
+    toJSON(): object {
+        return this.getTaskInfo()
     }
 
     // ------------------------------------------------------------------------------------------------------------ //

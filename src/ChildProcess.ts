@@ -1,6 +1,6 @@
 import {Task} from './Task'
 import {
-    ChildProcessEvents,
+    ChildProcessEvents, ChildProcessInfo,
     ChildProcessOptions,
     ChildProcessProvider, ChildProcessReadableStream,
     ChildProcessResult,
@@ -117,6 +117,9 @@ export default class ChildProcess<PData extends {} = {}, PMessage = any, IResult
                 context as ChildProcessContext<PData, PMessage, IResult>,
                 ...args
             ),
+            taskSetup(task) {
+                return options.taskSetup ? options.taskSetup(task) : undefined
+            },
             ...options,
             taskName: options.taskName || options.processName || executable,
         })
@@ -478,11 +481,27 @@ export default class ChildProcess<PData extends {} = {}, PMessage = any, IResult
     }
 
     // ------------------------------------------------------------------------------------------------------------ //
-    // ---- OVERRIDE: ChildProcess -------------------------------------------------------------------------------- //
+    // ---- OVERRIDE: Task ---------------------------------------------------------------------------------------- //
     // ------------------------------------------------------------------------------------------------------------ //
 
     protected createContext(...args: string[]): ChildProcessContext<PData, PMessage, IResult> {
         return new ChildProcessContext(this, args)
+    }
+
+    getTaskInfo(): ChildProcessInfo<PData, PMessage, IResult> {
+        return {
+            ...super.getTaskInfo(),
+            childProcessType: this.childProcessType,
+            cwd: this.cwd,
+            data: this.data,
+            env: this.env,
+            executable: this.executable,
+            exitCode: this.exitCode || undefined,
+            processName: this.processName,
+            result: this.result,
+            spawnargs: this.spawnargs,
+            spawnfile: this.spawnfile,
+        }
     }
 
     // ------------------------------------------------------------------------------------------------------------ //

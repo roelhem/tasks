@@ -71,6 +71,28 @@ export type TaskDefinition<TResult = any, TArgs extends any[] = [], PMessage = a
     TaskFunction<TResult, TArgs, PMessage, IResult>|TaskProvider<TResult, TArgs, PMessage, IResult>
 
 // -------------------------------------------------------------------------------------------------------------- //
+//   Task Definition                                                                                              //
+// -------------------------------------------------------------------------------------------------------------- //
+
+export interface TaskInfo<TResult = any, TArgs extends any[] = any[], PMessage = any, IResult = any> {
+    type: string
+    name: string
+    progressThrottle: number
+    state: TaskState
+    args?: TArgs
+    result?: TResult
+    failureReason?: Error
+    interruptionResult?: IResult
+    subTasks: TaskInfo<any, any[], PMessage, IResult>[]
+    cleanupTasks: TaskInfo<
+        void,
+        [any|undefined, IResult|undefined, TResult|undefined],
+        CleanupProgressMessage,
+        CleanupInterruptionResult
+    >[]
+}
+
+// -------------------------------------------------------------------------------------------------------------- //
 //   Special Kind Of Tasks                                                                                        //
 // -------------------------------------------------------------------------------------------------------------- //
 
@@ -195,6 +217,8 @@ export interface CommandOptions<CResult = any, CArgs extends {} = {}, GArgs exte
     hidden?: boolean
     skipCleanup?: boolean
     exit?: CommandExitOptions<CResult>
+    exitOnSuccess?: boolean
+    exitOnSuccessDelay?: number
 }
 
 // -------------------------------------------------------------------------------------------------------------- //
@@ -231,6 +255,26 @@ export type CommandDescription<CResult = any,
     IResult = any> =
     CommandProvider<CResult, CArgs, GArgs, PMessage, IResult>
     | CommandFunction<CResult, CArgs, GArgs, PMessage, IResult>
+
+// -------------------------------------------------------------------------------------------------------------- //
+//   Command Info                                                                                                 //
+// -------------------------------------------------------------------------------------------------------------- //
+
+export interface CommandInfo<
+    CResult = any,
+    CArgs extends {} = {},
+    GArgs extends {} = {},
+    PMessage = any,
+    IResult = any
+> extends TaskInfo<CResult, [Arguments<CArgs & GArgs>], PMessage, IResult> {
+    command: string
+    aliases: readonly string[]
+    description?: string
+    hidden: boolean
+    skipCleanup: boolean
+    exitOnSuccess: boolean
+    exitOnSuccessDelay: number
+}
 
 // -------------------------------------------------------------------------------------------------------------- //
 //   Command Exit Behavior                                                                                        //
@@ -359,6 +403,23 @@ export interface ChildProcessEvents extends TaskEvents {
 export type ChildProcessWritableStream = 'stdin'
 export type ChildProcessReadableStream = 'stdout'|'stderr'
 export type ChildProcessStream = ChildProcessWritableStream|ChildProcessReadableStream
+
+// -------------------------------------------------------------------------------------------------------------- //
+//   ChildProcess Info                                                                                            //
+// -------------------------------------------------------------------------------------------------------------- //
+
+export interface ChildProcessInfo<PData extends {} = {}, PMessage = any, IResult = any>
+    extends TaskInfo<ChildProcessResult<PData>, string[], PMessage, IResult> {
+    executable: string
+    processName: string
+    childProcessType: ChildProcessType
+    data: Partial<PData>
+    spawnargs: string[]
+    spawnfile: string
+    exitCode?: number
+    cwd?: string
+    env: NodeJS.ProcessEnv
+}
 
 // -------------------------------------------------------------------------------------------------------------- //
 //   ProcessEnv                                                                                                   //

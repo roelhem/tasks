@@ -1,7 +1,7 @@
 import {Task} from './Task'
 import {Arguments, CommandModule, CommandBuilder, Options} from 'yargs'
 import * as yargs from 'yargs'
-import {CommandDescription, CommandExitOptions, CommandExitState, CommandProvider} from './types'
+import {CommandDescription, CommandExitOptions, CommandExitState, CommandInfo, CommandProvider} from './types'
 
 export default class Command<
     CResult = any,
@@ -23,6 +23,8 @@ implements CommandProvider<CResult, CArgs, GArgs, PMessage, IResult>, CommandMod
     hidden: boolean
     skipCleanup: boolean
     exit: CommandExitOptions
+    exitOnSuccess: boolean
+    exitOnSuccessDelay: number
 
     constructor(description: CommandDescription<CResult, CArgs, GArgs, PMessage, IResult>)
     constructor(command: string, description: CommandDescription<CResult, CArgs, GArgs, PMessage, IResult>)
@@ -50,6 +52,26 @@ implements CommandProvider<CResult, CArgs, GArgs, PMessage, IResult>, CommandMod
         this.build = description.build || {}
         this.skipCleanup = !!description.skipCleanup
         this.exit = description.exit === undefined ? true : description.exit
+        this.exitOnSuccess = !!description.exitOnSuccess
+        this.exitOnSuccessDelay = description.exitOnSuccessDelay === undefined ? 0 :
+            description.exitOnSuccessDelay > 0 ? Math.round(description.exitOnSuccessDelay) : 0
+    }
+
+    // ------------------------------------------------------------------------------------------------------------ //
+    // ---- OVERRIDE: Task<CResult, [Arguments<CArgs & GArgs>], PMessage, IResult> -------------------------------- //
+    // ------------------------------------------------------------------------------------------------------------ //
+
+    getTaskInfo(): CommandInfo<CResult, CArgs, GArgs, PMessage, IResult> {
+        return {
+            ...super.getTaskInfo(),
+            command: this.command,
+            description: this.description,
+            hidden: this.hidden,
+            aliases: this.aliases,
+            skipCleanup: this.skipCleanup,
+            exitOnSuccess: this.exitOnSuccess,
+            exitOnSuccessDelay: this.exitOnSuccessDelay,
+        }
     }
 
     // ------------------------------------------------------------------------------------------------------------ //
@@ -137,6 +159,12 @@ implements CommandProvider<CResult, CArgs, GArgs, PMessage, IResult>, CommandMod
         // Exit with yargs when an error was given, exit with process.exit otherwise.
         if(error) {
             yargs.exit(exitCode, error)
+        } else if(this.exitOnSuccess) {
+            if(this.exitOnSuccessDelay > 0) {
+                setTimeout(() => process.exit(0))
+            } else {
+                process.exit(0)
+            }
         }
     }
 

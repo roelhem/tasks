@@ -43,6 +43,8 @@ describe('Debug tools behaviour',  () => {
         await t.run()
         console.log(t.getSubTaskTree())
         expect(t.getSubTaskTree().split('\n')).toHaveLength(14)
+        console.log(JSON.stringify(t, undefined, 2))
+        expect(JSON.stringify(t.toJSON())).toBe(JSON.stringify(t))
     })
 
 })

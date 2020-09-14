@@ -1,7 +1,7 @@
 import {Task, TaskInterruptionError} from '../../src'
 import {DEFAULT_TASK_NAME} from '../../src/constants'
 import TaskContext from '../../src/utils/TaskContext'
-import {TaskState} from '../../src/types'
+import {TaskProvider, TaskState} from '../../src/types'
 import {TriggerableTaskTemplate} from '../../src/templates'
 
 describe('Task', () => {
@@ -11,6 +11,26 @@ describe('Task', () => {
         test('Can be constructed', () => {
             const a = new Task(() => { return })
             expect(a).toBeInstanceOf(Task)
+        })
+
+        test('Runs .taskSetup()', () => {
+            const taskSetup = jest.fn((_task) => { return })
+            const a = new Task({
+                task: async () => { return },
+                taskSetup,
+            })
+            expect(taskSetup).toBeCalled()
+            expect(taskSetup).toBeCalledWith(a)
+        })
+
+        test('Runs .taskSetup() from class', () => {
+            const taskSetup = jest.fn((_task) => { return })
+            const a = new Task(new class implements TaskProvider {
+                async task() { return }
+                taskSetup(task: Task) { taskSetup(task) }
+            }())
+            expect(taskSetup).toBeCalled()
+            expect(taskSetup).toBeCalledWith(a)
         })
 
     })

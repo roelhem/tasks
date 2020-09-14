@@ -1,6 +1,37 @@
-import {ChildProcessType, Task, ChildProcess} from '../../src'
+import {ChildProcessType, Task, ChildProcess, TaskProvider, ChildProcessProvider} from '../../src'
 
 describe('ChildProcess', () => {
+
+    describe('constructor', () => {
+        test('Runs .taskSetup()', () => {
+            const taskSetup = jest.fn((_task) => { return })
+            const a = new ChildProcess('echo', {
+                taskSetup,
+            })
+            expect(taskSetup).toBeCalled()
+            expect(taskSetup).toBeCalledWith(a)
+        })
+
+        test('Runs .taskSetup() from class', () => {
+            const taskSetup = jest.fn((_task) => { return })
+            const a = new ChildProcess(new class implements ChildProcessProvider {
+                get executable(): string { return 'echo' }
+                taskSetup(task: Task) { taskSetup(task) }
+            }())
+            expect(taskSetup).toBeCalled()
+            expect(taskSetup).toBeCalledWith(a)
+        })
+
+        test('Runs .taskSetup() from class that has it as a property.', () => {
+            const taskSetupA = jest.fn((_task) => { return })
+            const a = new ChildProcess(new class implements ChildProcessProvider {
+                get executable(): string { return 'echo' }
+                taskSetup = taskSetupA
+            }())
+            expect(taskSetupA).toBeCalled()
+            expect(taskSetupA).toBeCalledWith(a)
+        })
+    })
 
     const typeTable: [ChildProcessType][] = [
         ['exec'],
@@ -62,6 +93,39 @@ describe('ChildProcess', () => {
                 childProcessType,
             })
             await expect(p.run(`throw new Error();`)).rejects.toThrow()
+        })
+
+        test('Runs .childProcessSetup() from options', async () => {
+            const childProcessSetup = jest.fn(async (_context, _args) => {
+                return {
+                    appendArgs: ['C'],
+                }
+            })
+            const lineListener = jest.fn((_line, _stream) => { return })
+            const p = new ChildProcess('echo', {
+                prependArgs: ['A'],
+                childProcessSetup,
+            })
+            await p.on('line', lineListener).run('B')
+            expect(childProcessSetup).toBeCalled()
+            expect(lineListener).toBeCalledWith('A B C', 'stdout')
+        })
+
+        test('Runs .childProcessSetup() from class', async () => {
+            const childProcessSetupA = jest.fn(async (_context, _args) => {
+                return {
+                    appendArgs: ['C'],
+                }
+            })
+            const lineListener = jest.fn((_line, _stream) => { return })
+            const p = new ChildProcess(new class implements ChildProcessProvider {
+                executable = 'echo'
+                prependArgs = ['A']
+                childProcessSetup = childProcessSetupA
+            }())
+            await p.on('line', lineListener).run('B')
+            expect(childProcessSetupA).toBeCalled()
+            expect(lineListener).toBeCalledWith('A B C', 'stdout')
         })
 
         test('Receive errors', async () => {
