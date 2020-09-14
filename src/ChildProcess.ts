@@ -16,6 +16,7 @@ import ChildProcessContext from './utils/ChildProcessContext'
 import * as readline from 'readline'
 import ChildProcessError from './ChildProcessError'
 import ProcessEnvFilter from './utils/ProcessEnvFilter'
+import {EOL} from 'os'
 
 export default class ChildProcess<PData extends {} = {}, PMessage = any, IResult = any>
     extends Task<ChildProcessResult<PData>, string[], PMessage, IResult>
@@ -336,6 +337,12 @@ export default class ChildProcess<PData extends {} = {}, PMessage = any, IResult
                             name: this.name,
                             icns: this.icns,
                         }, (error, stdout, stderr) => {
+                            if(stderr) {
+                                this.readStringData(context, 'stderr', stderr)
+                            }
+                            if(stdout) {
+                                this.readStringData(context, 'stdout', stdout)
+                            }
                             if (error && !this.allowNonZeroExitCode) {
                                 reject(new ChildProcessError({
                                     ...error,
@@ -447,6 +454,20 @@ export default class ChildProcess<PData extends {} = {}, PMessage = any, IResult
     // ------------------------------------------------------------------------------------------------------------ //
     // ---- LineHandler Helpers ----------------------------------------------------------------------------------- //
     // ------------------------------------------------------------------------------------------------------------ //
+
+    protected readStringData(context: ChildProcessContext<PData, PMessage, IResult>,
+                             stream: ChildProcessReadableStream,
+                             data: string|Buffer): void {
+        if(data instanceof Buffer) {
+            data = data.toString()
+        }
+        data.split(EOL).filter((line) => line.trim() !== '').forEach((line) => {
+            this.emit('line', line, stream)
+            for (const handler of this.lineHandlers) {
+                handler.call(this, context, stream, line)
+            }
+        })
+    }
 
     protected initLineHandlers(
         context: ChildProcessContext<PData, PMessage, IResult>,
