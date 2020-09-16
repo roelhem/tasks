@@ -142,12 +142,28 @@ describe('ChildProcess', () => {
 
     describe.skip('Type "sudoExec"', () => {
         test('Echo with sudo', async () => {
+            const lineListener = jest.fn((_line, _stream) => {})
             const p = new ChildProcess('echo', {
                 childProcessType: 'sudoExec',
                 processName: 'Allow This Prompt',
             })
+            p.on('line', lineListener)
             const result = await p.run('ABC')
             expect(result.exitCode).toBe(0)
+            expect(lineListener).toBeCalledWith('ABC', 'stdout')
+        }, 60 * 1000)
+
+        test('Log to stderr', async () => {
+            const lineListener = jest.fn((_line, _stream) => {})
+            const p = new ChildProcess(process.execPath, {
+                prependArgs: ['-e'],
+                processName: 'Allow This Prompt',
+                childProcessType: 'sudoExec',
+            })
+            p.on('line', lineListener)
+            const result = await p.run(`console.error('ABC')`)
+            expect(result.exitCode).toBe(0)
+            expect(lineListener).toBeCalledWith('ABC', 'stderr')
         }, 60 * 1000)
 
         test('Denied Prompts', async () => {
