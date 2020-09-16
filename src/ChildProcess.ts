@@ -10,7 +10,6 @@ import {
 } from './types'
 import * as cp from 'child_process'
 import * as sudo from 'sudo-prompt'
-import * as windows from 'node-windows'
 import {ExecException, MessageOptions} from 'child_process'
 import {Pipe, Readable, Writable} from 'stream'
 import ChildProcessContext from './utils/ChildProcessContext'
@@ -369,40 +368,44 @@ export default class ChildProcess<PData extends {} = {}, PMessage = any, IResult
                         break
                     }
                     case 'elevate': {
-                        const childProcess = windows.elevate(this.getFullCommand(args), {
-                            env: this.env,
-                            cwd: this.cwd,
-                            gid: this.gid,
-                            uid: this.uid,
-                            maxBuffer: this.maxBuffer,
-                            killSignal: this.killSignal,
-                            shell: typeof this.shell === 'string' ? this.shell : undefined,
-                            timeout: this.childProcessTimeout !== null ? this.childProcessTimeout : undefined,
-                            encoding: this.encoding,
-                            windowsHide: this.windowsHide,
-                        }, ((error: ExecException | null, stdout: string, stderr: string) => {
-                            if(stderr) {
-                                this.readStringData(context, 'stderr', stderr)
-                            }
-                            if(stdout) {
-                                this.readStringData(context, 'stdout', stdout)
-                            }
-                            if (error && !this.allowNonZeroExitCode) {
-                                reject(new ChildProcessError({
-                                    ...error,
-                                    stderr,
-                                    stdout,
-                                    childProcess: this,
-                                }, error))
-                            } else {
-                                resolve({
-                                    exitCode: error ? error.code : 0,
-                                    exitSignal: error ? error.signal : undefined,
-                                    stdout,
-                                    stderr,
-                                })
-                            }
-                        }) as any)
+                        if(process.platform === 'win32') {
+                            require('node-windows').elevate(this.getFullCommand(args), {
+                                env: this.env,
+                                cwd: this.cwd,
+                                gid: this.gid,
+                                uid: this.uid,
+                                maxBuffer: this.maxBuffer,
+                                killSignal: this.killSignal,
+                                shell: typeof this.shell === 'string' ? this.shell : undefined,
+                                timeout: this.childProcessTimeout !== null ? this.childProcessTimeout : undefined,
+                                encoding: this.encoding,
+                                windowsHide: this.windowsHide,
+                            }, ((error: ExecException | null, stdout: string, stderr: string) => {
+                                if(stderr) {
+                                    this.readStringData(context, 'stderr', stderr)
+                                }
+                                if(stdout) {
+                                    this.readStringData(context, 'stdout', stdout)
+                                }
+                                if (error && !this.allowNonZeroExitCode) {
+                                    reject(new ChildProcessError({
+                                        ...error,
+                                        stderr,
+                                        stdout,
+                                        childProcess: this,
+                                    }, error))
+                                } else {
+                                    resolve({
+                                        exitCode: error ? error.code : 0,
+                                        exitSignal: error ? error.signal : undefined,
+                                        stdout,
+                                        stderr,
+                                    })
+                                }
+                            }) as any)
+                        } else {
+                            reject(new Error(`'elevate' only works on windows, use 'sudoExec' instead.`))
+                        }
                         break
                     }
                     default: {
