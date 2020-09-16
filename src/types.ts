@@ -332,8 +332,9 @@ export type CommandExitOptions<CResult = any> = boolean | Partial<CommandExitCon
  *  - `fork`: Uses `child_process.fork`. (See: [Node.js documentation](https://nodejs.org/api/child_process.html#child_process_child_process_fork_modulepath_args_options))
  *  - `spawn`: Uses `child_process.spawn`. (See: [Node.js documentation](https://nodejs.org/api/child_process.html#child_process_child_process_spawn_command_args_options))
  *  - `sudoExec`: Uses `sudo-prompt.exec`. (See: [sudo-prompt Github](https://github.com/jorangreef/sudo-prompt#readme))
+ *  - `elevate`: Uses `node-windows.elevate`. (See: [sudo-prompt Github](https://www.npmjs.com/package/node-windows#elevate))
  */
-export type ChildProcessType = 'exec'|'execFile'|'fork'|'spawn'|'sudoExec'
+export type ChildProcessType = 'exec'|'execFile'|'fork'|'spawn'|'sudoExec'|'elevate'
 
 export type ChildProcessSetup<PData extends {} = {}, PMessage = any, IResult = any> = (
     context: ChildProcessContext<PData, PMessage, IResult>,
