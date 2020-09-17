@@ -480,15 +480,15 @@ export class Task<TResult = any, TArgs extends any[] = [], PMessage = any, IResu
 
         // Check range
         if(currentProgress < 0) {
-            throw new Error(`Current progress must be bigger than or equal 0.`)
+            currentProgress = 0
         }
         if(totalProgress !== undefined && totalProgress <= 0) {
-            throw new Error(`Current progress must be bigger than 0.`)
+           totalProgress = 1
         }
 
         // Up totalProgress if currentProgress is bigger.
         if(totalProgress !== undefined && currentProgress > totalProgress) {
-            throw new Error(`Current progress must be smaller than the total progress.`)
+            totalProgress = currentProgress
         }
 
         // Change progress and emit event if there are changes.
