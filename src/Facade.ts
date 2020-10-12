@@ -9,18 +9,22 @@ import {Task} from './Task'
 import {isTaskDefinition} from './utils'
 import ChildProcess from './ChildProcess'
 import Command from './Command'
-import {Argv} from 'yargs'
 import Callable from './utils/Callable'
+import Factory from './factories/Factory'
+import {ChildProcessFactory, CommandFactory, TaskFactory} from './factories'
+import PreparedTask from './PreparedTask'
 
-export default class Facade<FPMessage = any, FIResult = any, FGArgs extends {} = {}> extends Callable<{
-    <TResult = any, TArgs extends any[] = [], PMessage = FPMessage, IResult = FIResult>(
+type Item<M = any, I = any> = Factory<any, any, M, I>
+
+export default class Facade<M = any, I = any, FGArgs extends {} = {}> extends Callable<{
+    <TResult = any, TArgs extends any[] = [], PMessage = M, IResult = I>(
         task: TaskDefinition<TResult, TArgs, PMessage, IResult>
     ): Task<TResult, TArgs, PMessage, IResult>
-    <TResult = any, TArgs extends any[] = [], PMessage = FPMessage, IResult = FIResult>(
+    <TResult = any, TArgs extends any[] = [], PMessage = M, IResult = I>(
         name: string,
         task: TaskDefinition<TResult, TArgs, PMessage, IResult>
     ): Task<TResult, TArgs, PMessage, IResult>
-}> {
+}> implements Map<string, Item<M, I>> {
 
     // ------------------------------------------------------------------------------------------------------------ //
     // ---- STATIC CONSTANTS -------------------------------------------------------------------------------------- //
@@ -44,54 +48,113 @@ export default class Facade<FPMessage = any, FIResult = any, FGArgs extends {} =
     // ---- INITIALISATION ---------------------------------------------------------------------------------------- //
     // ------------------------------------------------------------------------------------------------------------ //
 
+    readonly [Symbol.toStringTag]: string = 'TaskFacade'
+    protected factories: Map<string, Item<M, I>>
+
     constructor() {
         super('create')
+        this.factories = new Map()
     }
 
     // ------------------------------------------------------------------------------------------------------------ //
     // ---- CREATE/RUN TASK --------------------------------------------------------------------------------------- //
     // ------------------------------------------------------------------------------------------------------------ //
 
-    create<TResult = any, TArgs extends any[] = [], PMessage = FPMessage, IResult = FIResult>(
+    create<TResult = any, TArgs extends any[] = any[], PMessage = M, IResult = I>(
         task: TaskDefinition<TResult, TArgs, PMessage, IResult>
     ): Task<TResult, TArgs, PMessage, IResult>
-    create<TResult = any, TArgs extends any[] = [], PMessage = FPMessage, IResult = FIResult>(
+    create<TResult = any, TArgs extends any[] = any[], PMessage = M, IResult = I>(
         name: string,
         task: TaskDefinition<TResult, TArgs, PMessage, IResult>
     ): Task<TResult, TArgs, PMessage, IResult>
-    create<TResult = any, TArgs extends any[] = [], PMessage = FPMessage, IResult = FIResult>(
+    create<TResult = any, TArgs extends any[] = any[]>(
+        key: string
+    ): Task<TResult, TArgs, M, I>
+    create<TResult = any, TArgs extends any[] = any[], PMessage = M, IResult = I>(
         arg0: string|TaskDefinition<TResult, TArgs, PMessage, IResult>,
         arg1?: TaskDefinition<TResult, TArgs, PMessage, IResult>
-    ): Task<TResult, TArgs, PMessage, IResult>{
+    ): Task<TResult, TArgs, PMessage, IResult>|Task<TResult, TArgs, M, I>{
         if(isTaskDefinition<TResult, TArgs, PMessage, IResult>(arg0)) { // TYPE 1
             return new Task<TResult, TArgs, PMessage, IResult>(arg0)
         } else if(isTaskDefinition<TResult, TArgs, PMessage, IResult>(arg1)) { // TYPE 2
             return new Task<TResult, TArgs, PMessage, IResult>(arg0, arg1)
         } else {
-            throw new TypeError(`No TaskDefinition provided.`)
+            const factory = this.factories.get(arg0)
+            if(!factory) {
+                throw new Error(`No task with key '${arg0}' defined.`)
+            }
+            return factory.create()
         }
     }
 
-    run<TResult = any, TArgs extends any[] = [], PMessage = FPMessage, IResult = FIResult>(
+    define<TResult = any, TArgs extends any[] = any[]>(
+        key: string,
+        taskDefinition: TaskDefinition<TResult, TArgs, M, I>
+    ): TaskFactory<TResult, TArgs, M, I> {
+        const result = new TaskFactory<TResult, TArgs, M, I>(key, taskDefinition)
+        this.factories.set(key, result)
+        return result
+    }
+
+    run<TResult = any, TArgs extends any[] = any[], PMessage = M, IResult = I>(
         task: TaskDefinition<TResult, TArgs, PMessage, IResult>,
         ...args: TArgs
     ): Task<TResult, TArgs, PMessage, IResult>
-    run<TResult = any, TArgs extends any[] = [], PMessage = FPMessage, IResult = FIResult>(
+    run<TResult = any, TArgs extends any[] = any[], PMessage = M, IResult = I>(
         name: string,
         task: TaskDefinition<TResult, TArgs, PMessage, IResult>,
         ...args: TArgs
     ): Task<TResult, TArgs, PMessage, IResult>
-    run<TResult = void, TArgs extends any[] = [], PMessage = string, IResult = any>(
+    run<TResult = void, TArgs extends any[] = any[]>(
+        key: string,
+        ...args: TArgs
+    ): Task<TResult, TArgs, M, I>
+    run<TResult = void, TArgs extends any[] = any[], PMessage = string, IResult = any>(
         arg0: string|TaskDefinition<TResult, TArgs, PMessage, IResult>,
         arg1?: TaskDefinition<TResult, TArgs, PMessage, IResult>|any,
         ...others: any[]
-    ): Task<TResult, TArgs, PMessage, IResult> {
+    ): Task<TResult, TArgs, PMessage, IResult>|Task<TResult, TArgs, M, I> {
         if(isTaskDefinition<TResult, TArgs, PMessage, IResult>(arg0)) { // TYPE 1
             return this.create(arg0).run(...[arg1, ...others] as TArgs)
         } else if(isTaskDefinition<TResult, TArgs, PMessage, IResult>(arg1)) { // TYPE 2
             return this.create(arg0, arg1).run(...others as TArgs)
         } else {
-            throw new TypeError(`No TaskDefinition provided.`)
+            const factory = this.factories.get(arg0)
+            if(!factory) {
+                throw new Error(`No task with key '${arg0}' defined.`)
+            }
+            return factory.run(...[arg1, ...others] as TArgs)
+        }
+    }
+
+    prepare<TResult = any, TArgs extends any[] = any[], PMessage = M, IResult = I>(
+        task: TaskDefinition<TResult, TArgs, PMessage, IResult>,
+        ...args: TArgs
+    ): PreparedTask<TResult, TArgs, PMessage, IResult>
+    prepare<TResult = any, TArgs extends any[] = any[], PMessage = M, IResult = I>(
+        name: string,
+        task: TaskDefinition<TResult, TArgs, PMessage, IResult>,
+        ...args: TArgs
+    ): PreparedTask<TResult, TArgs, PMessage, IResult>
+    prepare<TResult = void, TArgs extends any[] = any[]>(
+        key: string,
+        ...args: TArgs
+    ): PreparedTask<TResult, TArgs, M, I>
+    prepare<TResult = void, TArgs extends any[] = any[], PMessage = string, IResult = any>(
+        arg0: string|TaskDefinition<TResult, TArgs, PMessage, IResult>,
+        arg1?: TaskDefinition<TResult, TArgs, PMessage, IResult>|any,
+        ...others: any[]
+    ): PreparedTask<TResult, TArgs, PMessage, IResult>|PreparedTask<TResult, TArgs, M, I> {
+        if(isTaskDefinition<TResult, TArgs, PMessage, IResult>(arg0)) { // TYPE 1
+            return this.create(arg0).prepare(...[arg1, ...others] as TArgs)
+        } else if(isTaskDefinition<TResult, TArgs, PMessage, IResult>(arg1)) { // TYPE 2
+            return this.create(arg0, arg1).prepare(...others as TArgs)
+        } else {
+            const factory = this.factories.get(arg0)
+            if(!factory) {
+                throw new Error(`No task with key '${arg0}' defined.`)
+            }
+            return factory.prepare(...[arg1, ...others] as TArgs)
         }
     }
 
@@ -99,14 +162,14 @@ export default class Facade<FPMessage = any, FIResult = any, FGArgs extends {} =
     // ---- CREATE/RUN CHILD PROCESS ------------------------------------------------------------------------------ //
     // ------------------------------------------------------------------------------------------------------------ //
 
-    createChildProcess<PData extends {} = {}, PMessage = FPMessage, IResult = FIResult>(
+    createChildProcess<PData extends {} = {}, PMessage = M, IResult = I>(
         childProcess: ChildProcessProvider<PData, PMessage, IResult>
     ): ChildProcess<PData, PMessage, IResult>
-    createChildProcess<PData extends {} = {}, PMessage = FPMessage, IResult = FIResult>(
+    createChildProcess<PData extends {} = {}, PMessage = M, IResult = I>(
         executable: string,
         options?: ChildProcessOptions<PData, PMessage, IResult>
     ): ChildProcess<PData, PMessage, IResult>
-    createChildProcess<PData extends {} = {}, PMessage = FPMessage, IResult = FIResult>(
+    createChildProcess<PData extends {} = {}, PMessage = M, IResult = I>(
         arg0: string|ChildProcessProvider<PData, PMessage, IResult>,
         arg1?: ChildProcessOptions<PData, PMessage, IResult>
     ): ChildProcess<PData, PMessage, IResult> {
@@ -117,16 +180,25 @@ export default class Facade<FPMessage = any, FIResult = any, FGArgs extends {} =
         }
     }
 
-    runChildProcess<PData extends {} = {}, PMessage = FPMessage, IResult = FIResult>(
+    defineChildProcess<PData extends {} = {}>(
+        key: string,
+        childProcess: ChildProcessProvider<PData, M, I>
+    ): ChildProcessFactory<PData, M, I> {
+        const res = new ChildProcessFactory(key, childProcess)
+        this.factories.set(key, res)
+        return res
+    }
+
+    runChildProcess<PData extends {} = {}, PMessage = M, IResult = I>(
         childProcess: ChildProcessProvider<PData, PMessage, IResult>,
         ...args: string[]
     ): ChildProcess<PData, PMessage, IResult>
-    runChildProcess<PData extends {} = {}, PMessage = FPMessage, IResult = FIResult>(
+    runChildProcess<PData extends {} = {}, PMessage = M, IResult = I>(
         executable: string,
         childProcess: ChildProcessOptions<PData, PMessage, IResult>,
         ...args: string[]
     ): ChildProcess<PData, PMessage, IResult>
-    runChildProcess<PData extends {} = {}, PMessage = FPMessage, IResult = FIResult>(
+    runChildProcess<PData extends {} = {}, PMessage = M, IResult = I>(
         arg0: string|ChildProcessProvider<PData, PMessage, IResult>,
         arg1?: string|ChildProcessOptions<PData, PMessage, IResult>,
         ...args: string[]
@@ -146,14 +218,14 @@ export default class Facade<FPMessage = any, FIResult = any, FGArgs extends {} =
     // ---- CREATE/ADD COMMANDS ----------------------------------------------------------------------------------- //
     // ------------------------------------------------------------------------------------------------------------ //
 
-    createCommand<CResult=any, CArgs extends {}={}, GArgs extends {}=FGArgs, PMessage=FPMessage, IResult=FIResult> (
+    createCommand<CResult=any, CArgs extends {}={}, GArgs extends {}=FGArgs, PMessage=M, IResult=I> (
         description: CommandDescription<CResult, CArgs, GArgs, PMessage, IResult>
     ): Command<CResult, CArgs, GArgs, PMessage, IResult>
-    createCommand<CResult=any, CArgs extends {}={}, GArgs extends {}=FGArgs, PMessage=FPMessage, IResult=FIResult> (
+    createCommand<CResult=any, CArgs extends {}={}, GArgs extends {}=FGArgs, PMessage=M, IResult=I> (
         command: string,
         description: CommandDescription<CResult, CArgs, GArgs, PMessage, IResult>
     ): Command<CResult, CArgs, GArgs, PMessage, IResult>
-    createCommand<CResult=any, CArgs extends {}={}, GArgs extends {}=FGArgs, PMessage=FPMessage, IResult=FIResult> (
+    createCommand<CResult=any, CArgs extends {}={}, GArgs extends {}=FGArgs, PMessage=M, IResult=I> (
         arg0: string| CommandDescription<CResult, CArgs, GArgs, PMessage, IResult>,
         arg1?: CommandDescription<CResult, CArgs, GArgs, PMessage, IResult>
     ): Command<CResult, CArgs, GArgs, PMessage, IResult> {
@@ -164,6 +236,15 @@ export default class Facade<FPMessage = any, FIResult = any, FGArgs extends {} =
         } else {
             throw new TypeError(`No CommandDescription provided.`)
         }
+    }
+
+    defineCommand<CResult=any, CArgs extends {}={}, GArgs extends {}=FGArgs> (
+        key: string,
+        description: CommandDescription<CResult, CArgs, GArgs, M, I>
+    ): CommandFactory<CResult, CArgs, GArgs, M, I> {
+        const res = new CommandFactory(key, description)
+        this.factories.set(key, res)
+        return res
     }
 
     // ------------------------------------------------------------------------------------------------------------ //
@@ -183,4 +264,53 @@ export default class Facade<FPMessage = any, FIResult = any, FGArgs extends {} =
     get INTERRUPT_FROM_CHILD(): TaskInterruptionFlag.FROM_CHILD { return Facade.INTERRUPT_FROM_CHILD }
     get INTERRUPT_FROM_FAILURE(): TaskInterruptionFlag.FROM_FAILURE { return Facade.INTERRUPT_FROM_FAILURE }
     get INTERRUPT_FORCE(): TaskInterruptionFlag.FORCE { return Facade.INTERRUPT_FORCE }
+
+    // ------------------------------------------------------------------------------------------------------------ //
+    // ---- IMPLEMENT: Map<string, Item<M, I>> -------------------------------------------------------------------- //
+    // ------------------------------------------------------------------------------------------------------------ //
+
+    has(key: string): boolean {
+        return this.factories.has(key)
+    }
+
+    delete(key: string): boolean {
+        return this.factories.delete(key)
+    }
+
+    clear(): void {
+        return this.factories.clear()
+    }
+
+    set(key: string, task: Item<M, I>): this {
+        this.factories.set(key, task as any)
+        return this
+    }
+
+    get size(): number {
+        return this.factories.size
+    }
+
+    [Symbol.iterator](): IterableIterator<[string, Item<M, I>]> {
+        return this.factories[Symbol.iterator]()
+    }
+
+    entries(): IterableIterator<[string, Item<M, I>]> {
+        return this.factories.entries()
+    }
+
+    forEach(callback: (value: Item<M, I>, key: string, facade: this,) => void): void {
+        this.factories.forEach((value, key) => callback(value, key, this))
+    }
+
+    get(key: string): Item<M, I> | undefined {
+        return this.factories.get(key)
+    }
+
+    keys(): IterableIterator<string> {
+        return this.factories.keys()
+    }
+
+    values(): IterableIterator<Item<M, I>> {
+        return this.factories.values()
+    }
 }

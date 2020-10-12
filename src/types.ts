@@ -13,7 +13,7 @@ import ProcessEnvFilter from './utils/ProcessEnvFilter'
 /**
  * Extra options for the construction of a [[Task]].
  */
-export interface TaskOptions<TResult = any, TArgs extends any[] = [], PMessage = any, IResult = any> {
+export interface TaskOptions<TResult = any, TArgs extends any[] = any[], PMessage = any, IResult = any> {
     /**
      * A function that will be called directly after the [[Task]] is constructed.
      *
@@ -39,7 +39,7 @@ export interface TaskOptions<TResult = any, TArgs extends any[] = [], PMessage =
 /**
  * A function that can be used to construct a new [[Task]].
  */
-export interface TaskFunction<TResult = any, TArgs extends any[] = [], PMessage = any, IResult = any>
+export interface TaskFunction<TResult = any, TArgs extends any[] = any[], PMessage = any, IResult = any>
     extends TaskOptions<TResult, TArgs, PMessage, IResult> {
     /**
      * The function that defines the behavior of the [[Task]].
@@ -51,7 +51,7 @@ export interface TaskFunction<TResult = any, TArgs extends any[] = [], PMessage 
 }
 
 
-export interface TaskProvider<TResult = any, TArgs extends any[] = [], PMessage = any, IResult = any>
+export interface TaskProvider<TResult = any, TArgs extends any[] = any[], PMessage = any, IResult = any>
     extends TaskOptions<TResult, TArgs, PMessage, IResult> {
     /**
      * The method that defines the behavior of the [[Task]].
@@ -62,12 +62,12 @@ export interface TaskProvider<TResult = any, TArgs extends any[] = [], PMessage 
     task(context: TaskContext<TResult, TArgs, PMessage, IResult>, ...args: TArgs): Promise<TResult>|TResult|void
 }
 
-export interface NamedTaskProvider<TResult = any, TArgs extends any[] = [], PMessage = any, IResult = any>
+export interface NamedTaskProvider<TResult = any, TArgs extends any[] = any[], PMessage = any, IResult = any>
     extends TaskProvider<TResult, TArgs, PMessage, IResult> {
     taskName: string
 }
 
-export type TaskDefinition<TResult = any, TArgs extends any[] = [], PMessage = any, IResult = any> =
+export type TaskDefinition<TResult = any, TArgs extends any[] = any[], PMessage = any, IResult = any> =
     TaskFunction<TResult, TArgs, PMessage, IResult>|TaskProvider<TResult, TArgs, PMessage, IResult>
 
 // -------------------------------------------------------------------------------------------------------------- //
@@ -158,7 +158,7 @@ export enum TaskState {
 //   Task Events                                                                                                  //
 // -------------------------------------------------------------------------------------------------------------- //
 
-export interface TaskEvents<TResult = any, TArgs extends any[] = [], PMessage = any, IResult = any> {
+export interface TaskEvents<TResult = any, TArgs extends any[] = any[], PMessage = any, IResult = any> {
     started(...args: TArgs): void
     succeeded(result: TResult): void
     failed(reason: any): void

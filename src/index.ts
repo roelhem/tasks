@@ -12,3 +12,4 @@ export * from './types'
 export { TaskInterruptionError }
 export * from './templates'
 export * from './utils'
+export * from './factories'

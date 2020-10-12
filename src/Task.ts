@@ -27,6 +27,7 @@ import {
 import {DEFAULT_TASK_NAME} from './constants'
 import {EventEmitter} from 'events'
 import TaskInterruptionError, {isTaskInterruptionError} from './TaskInterruptionError'
+import PreparedTask from './PreparedTask'
 
 export type CleanupTask<TResult = void, TArgs extends any[] = [], IResult = any> = Task<
     void,
@@ -207,7 +208,7 @@ export class Task<TResult = any, TArgs extends any[] = [], PMessage = any, IResu
         // Set the toStringTag.
         this[Symbol.toStringTag] = `${this.constructor.name}[${this.name}]`
 
-        // Initialize the promis
+        // Initialize the promise
         this._promise = new Promise((resolve, reject) => {
             this.once('succeeded', (result: TResult) => { resolve(result) })
             this.once('failed', (reason: any) => { reject(reason) })
@@ -274,6 +275,20 @@ export class Task<TResult = any, TArgs extends any[] = [], PMessage = any, IResu
 
         // Return itself.
         return this
+    }
+
+    // ------------------------------------------------------------------------------------------------------------ //
+    // ---- GET PREPARED TASK ------------------------------------------------------------------------------------- //
+    // ------------------------------------------------------------------------------------------------------------ //
+
+    /**
+     * Returns a [[PreparedTask]] for this [[Task]], which has it's arguments prepared.
+     *
+     * @param args The arguments that you want to prepare.
+     */
+    prepare(...args: TArgs): PreparedTask<TResult, TArgs, PMessage, IResult> {
+        const constructor = require('./PreparedTask')
+        return new constructor(this, ...args)
     }
 
     // ------------------------------------------------------------------------------------------------------------ //
