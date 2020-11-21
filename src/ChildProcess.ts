@@ -18,6 +18,8 @@ import ChildProcessError from './ChildProcessError'
 import ProcessEnvFilter from './utils/ProcessEnvFilter'
 import {EOL} from 'os'
 
+const sh = require('puka').sh as any
+
 export default class ChildProcess<PData extends {} = {}, PMessage = any, IResult = any>
     extends Task<ChildProcessResult<PData>, string[], PMessage, IResult>
     implements ChildProcessProvider<PData, PMessage, IResult>, cp.ChildProcess {
@@ -189,7 +191,7 @@ export default class ChildProcess<PData extends {} = {}, PMessage = any, IResult
     // ------------------------------------------------------------------------------------------------------------ //
 
     protected getFullCommand(args: string[] = []): string {
-        return [this.executable, ...args].map(arg => `"${arg.replace(/"/g, '\\"')}"`).join(' ')
+        return sh`${[this.executable, ...args]}`
     }
 
     protected async runChildProcess(
