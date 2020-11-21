@@ -191,7 +191,7 @@ export default class ChildProcess<PData extends {} = {}, PMessage = any, IResult
     // ------------------------------------------------------------------------------------------------------------ //
 
     protected getFullCommand(args: string[] = []): string {
-        return sh`${[this.executable, ...args]}`
+        return [this.executable, ...args].map(sh).join(' ')
     }
 
     protected async runChildProcess(
