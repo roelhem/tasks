@@ -18,7 +18,7 @@ import ChildProcessError from './ChildProcessError'
 import ProcessEnvFilter from './utils/ProcessEnvFilter'
 import {EOL} from 'os'
 
-const sh = require('puka').sh as any
+const quoteForShell = require('puka').quoteForShell as (text:string, forceQuote?: boolean, platform?: string) => string
 
 export default class ChildProcess<PData extends {} = {}, PMessage = any, IResult = any>
     extends Task<ChildProcessResult<PData>, string[], PMessage, IResult>
@@ -191,7 +191,7 @@ export default class ChildProcess<PData extends {} = {}, PMessage = any, IResult
     // ------------------------------------------------------------------------------------------------------------ //
 
     protected getFullCommand(args: string[] = []): string {
-        return [this.executable, ...args].map(sh).join(' ')
+        return [this.executable, ...args].map(s => quoteForShell(s)).join(' ')
     }
 
     protected async runChildProcess(
