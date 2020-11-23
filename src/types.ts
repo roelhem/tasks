@@ -372,6 +372,7 @@ export interface ChildProcessOptions<PData extends {} = {}, PMessage = any, IRes
     windowsVerbatimArguments?: boolean
     icns?: string
     lineHandlers?: Iterable<LineHandler<PData, PMessage, IResult>>
+    commandFormatter?: (command: string, ...args: string[]) => string
 }
 
 export interface ChildProcessProvider<PData extends {} = {}, PMessage = any, IResult = any>

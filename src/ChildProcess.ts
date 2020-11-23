@@ -175,10 +175,11 @@ export default class ChildProcess<PData extends {} = {}, PMessage = any, IResult
             }
         }
         // Formatters
-        this.commandFormatter = (...args) => args
-            .map(s => quoteForShell(s))
-            .join(' ')
-            .replace(/\^%/g, '%')
+        this.commandFormatter = options.commandFormatter || (
+            (...args) => args.map(s => quoteForShell(s))
+                             .join(' ')
+                             .replace(/\^%/g, '%')
+        )
     }
 
     // ------------------------------------------------------------------------------------------------------------ //
