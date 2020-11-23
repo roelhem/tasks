@@ -102,6 +102,12 @@ export default class ChildProcess<PData extends {} = {}, PMessage = any, IResult
      */
     data: Partial<PData>
 
+    /**
+     * A function that converts an array containing arguments of a command to a string that can be send to a
+     * command.
+     */
+    commandFormatter: (command: string, ...args: string[]) => string
+
 
     constructor(provider: ChildProcessProvider<PData, PMessage, IResult>)
     /**
@@ -168,6 +174,11 @@ export default class ChildProcess<PData extends {} = {}, PMessage = any, IResult
                 this.lineHandlers.add(lineHandler)
             }
         }
+        // Formatters
+        this.commandFormatter = (...args) => args
+            .map(s => quoteForShell(s))
+            .join(' ')
+            .replace(/\^%/g, '%')
     }
 
     // ------------------------------------------------------------------------------------------------------------ //
@@ -191,7 +202,7 @@ export default class ChildProcess<PData extends {} = {}, PMessage = any, IResult
     // ------------------------------------------------------------------------------------------------------------ //
 
     protected getFullCommand(args: string[] = []): string {
-        return [this.executable, ...args].map(s => quoteForShell(s)).join(' ')
+        return (this.commandFormatter(this.executable, ...args))
     }
 
     protected async runChildProcess(
