@@ -1,6 +1,6 @@
 {
   "name": "@roelhem/tasks",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "description": "A way to describe tasks in a promisy-way with progress and cancellation control.",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
