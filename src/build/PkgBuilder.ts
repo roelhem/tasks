@@ -32,6 +32,10 @@ export interface Options extends PkgPluginOptions {
      * This value defaults to `true` if the [[CommandFile]] has type `ts`, otherwise it defaults to `true`.
      */
     tsLoader?: boolean|RuleSetRule
+    /**
+     * Just resume when some stat-errors occurred.
+     */
+    ignoreStatErrors?: boolean
 }
 
 /**
@@ -222,10 +226,18 @@ export default class PkgBuilder implements NamedTaskProvider<Stats, [], string> 
     readonly configuration: Configuration
     pkgPlugin: PkgPlugin
 
+    /**
+     * Whether or not the errors from the resulting stat can be ignored.
+     */
+    ignoreStatErrors: boolean
+
     constructor(source: string|CommandFile, options: Options = {}) {
         // Store the commands
         this.commandFile = typeof source === 'string' ? pathToCommandFile(source) : source
         this.name = options.name || (options.output ? path.basename(options.output) : this.commandFile.name)
+
+        // Control flow options
+        this.ignoreStatErrors = !!options.ignoreStatErrors
 
         // Get the build path.
         this.buildPath = path.resolve(options.buildPath || PkgBuilder.getDefaultBuildPath(this.commandFile, this.name))
@@ -296,7 +308,7 @@ export default class PkgBuilder implements NamedTaskProvider<Stats, [], string> 
             this.compiler.run((error, stats) => {
                 if(error) {
                     reject(error)
-                } else if (stats && stats.hasErrors()) {
+                } else if (!this.ignoreStatErrors && stats && stats.hasErrors()) {
                     console.error(stats.toString({ colors: true }))
                     reject(new Error(`PkgBuilder had some errors.`))
                 } else {
