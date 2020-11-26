@@ -57,8 +57,8 @@ export default class PgkPlugin implements WebpackPluginInstance {
     // ------------------------------------------------------------------------------------------------------------ //
 
     targets: BuildTarget[]
-    output: string
-    outputPath: string
+    output?: string
+    outputPath?: string
     assets: string[]
     scripts: string[]
     debugMode: boolean
@@ -72,12 +72,12 @@ export default class PgkPlugin implements WebpackPluginInstance {
     constructor(options: Options = {}) {
         this.targets = Array.isArray(options.targets) ? options.targets :
             options.targets !== undefined ? [options.targets] : []
-        this.output = options.output || 'package'
+        this.output = options.output
         this.scripts = Array.isArray(options.scripts) ? options.scripts :
             options.scripts !== undefined ? [options.scripts] : []
         this.assets = Array.isArray(options.assets) ? options.assets :
             options.assets !== undefined ? [options.assets] : []
-        this.outputPath = options.outputPath || './build'
+        this.outputPath = options.outputPath
         this.debugMode = !!options.debugMode
         this.buildBaseBinaries = !!options.buildBaseBinaries
 
@@ -112,14 +112,13 @@ export default class PgkPlugin implements WebpackPluginInstance {
     // ---- PKG CONFIG FILE --------------------------------------------------------------------------------------- //
     // ------------------------------------------------------------------------------------------------------------ //
 
-    protected getPkgConfigFilePath(outputPath?: string) {
-        outputPath = outputPath || this.outputPath
-        return path.join(outputPath, this.pkgConfigFilename)
+    protected getPkgConfigFilePath(buildPath: string) {
+        return path.join(buildPath, this.pkgConfigFilename)
     }
 
-    protected writePkgConfigFile(outputPath?: string): Promise<void> {
+    protected writePkgConfigFile(buildPath: string): Promise<void> {
         return new Promise<void>((resolve, reject) => {
-            writeFile(this.getPkgConfigFilePath(outputPath), JSON.stringify({
+            writeFile(this.getPkgConfigFilePath(buildPath), JSON.stringify({
                 targets: this.targetStrings,
                 assets: this.assets,
                 scripts: this.scripts,
@@ -133,9 +132,9 @@ export default class PgkPlugin implements WebpackPluginInstance {
         })
     }
 
-    protected unlinkPkgConfigFile(outputPath?: string): Promise<void> {
+    protected unlinkPkgConfigFile(buildPath: string): Promise<void> {
         return new Promise<void>((resolve, reject) => {
-            unlink(this.getPkgConfigFilePath(outputPath), (err) => {
+            unlink(this.getPkgConfigFilePath(buildPath), (err) => {
                 if(err) {
                     reject(err)
                 } else {
@@ -149,18 +148,25 @@ export default class PgkPlugin implements WebpackPluginInstance {
     // ---- BUILD ------------------------------------------------------------------------------------------------- //
     // ------------------------------------------------------------------------------------------------------------ //
 
-    async build(sourcePath: string, outputPath?: string) {
-        outputPath = outputPath || this.outputPath
+    async build(sourcePath: string, buildPath: string) {
         const args: string[] = [sourcePath]
 
-        // Add the dist path
-        args.push('--out-path', path.join(outputPath, this.output))
+        // Add the output format
+        if(this.output) {
+            if(this.outputPath) {
+                args.push('--output', path.join(this.outputPath, this.output))
+            } else {
+                args.push('--output', this.output)
+            }
+        } else if(this.outputPath) {
+            args.push('--out-path', this.outputPath)
+        }
 
         // Config
         const createConfigFile = this.assets.length || this.scripts.length
         if(createConfigFile) {
-            await this.writePkgConfigFile(outputPath)
-            args.push('--config', this.getPkgConfigFilePath(outputPath))
+            await this.writePkgConfigFile(buildPath)
+            args.push('--config', this.getPkgConfigFilePath(buildPath))
         } else {
             args.push('--targets', this.targetStrings.join(','))
         }
@@ -176,13 +182,16 @@ export default class PgkPlugin implements WebpackPluginInstance {
         }
 
         // Run the build
+        const originalLog = console.log
         try {
+            console.log = () => { return }
             await exec(args)
         } catch (e) {
             throw e
         } finally {
+            console.log = originalLog
             if(createConfigFile) {
-                await this.unlinkPkgConfigFile(outputPath)
+                await this.unlinkPkgConfigFile(buildPath)
             }
         }
     }
@@ -193,7 +202,7 @@ export default class PgkPlugin implements WebpackPluginInstance {
 
     apply(compiler: Compiler) {
         compiler.hooks.afterEmit.tapAsync(`PkgPlugin`, async (compilation, callback) => {
-            const outputPath = compilation.compiler.options.output.path || this.outputPath
+            const buildPath = compilation.compiler.options.output.path || './build'
 
             // Get a list of files that should be added
             const entries = Object.keys(compilation.compiler.options.entry)
@@ -202,8 +211,8 @@ export default class PgkPlugin implements WebpackPluginInstance {
 
             // Loop through files and build them.
             for (const file of files) {
-                const filePath = path.join(outputPath, file)
-                await this.build(filePath, outputPath)
+                const filePath = path.join(buildPath, file)
+                await this.build(filePath, buildPath)
             }
 
             // Callback to signal that the plugin had been run successfully

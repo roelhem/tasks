@@ -5,7 +5,13 @@ let commands = require('__command_input');
 
 // Ensure that commands is an array.
 if(!Array.isArray(commands)) {
-    commands = [commands]
+    if('default' in commands) {
+        commands = [commands.default]
+    } else if(Object.entries(commands).length > 0) {
+        commands = [commands]
+    } else {
+        commands = []
+    }
 }
 
 // Loop through each command.
@@ -14,4 +20,7 @@ for (const command of commands) {
     yargs.command(command)
 }
 
-yargs.parse();
+// Parse the arguments if they haven't been already or if there were some commands returned.
+if(!yargs.parsed || commands.length > 0) {
+    yargs.parse();
+}

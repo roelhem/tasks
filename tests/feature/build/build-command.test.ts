@@ -1,38 +1,46 @@
 import * as path from "path"
 import PkgBuilder from '../../../src/build/PkgBuilder'
+import task from '../../../src'
 
 describe('Build a command', () => {
 
     const commandTable: [string][] = [
-        [path.resolve(__dirname, 'commands/simple-command.command.ts')]
+        ['simple-command'],
+        ['empty-command'],
+        ['default-export']
     ]
-    const outPath: string = path.resolve(__dirname, '../../../testFiles/feature/build')
 
-    describe.each(commandTable)('Build Command at %s', (path) => {
-        test('Can build', async () => {
-            const builder = new PkgBuilder(path, {
-                output: {
-                    path: outPath
-                },
-                module: {
-                    rules: [
-                        {
-                            test: /\.tsx?$/,
-                            loader: 'ts-loader',
-                            options: {
-                                transpileOnly: true,
-                                logInfoToStdOut: true,
-                                compilerOptions: {
-                                    rootDir: './'
-                                }
-                            },
-                        }
-                    ]
-                }
+    const commandDir = path.resolve(__dirname, 'commands')
+    const outputPath = path.resolve(__dirname, '../../../testFiles')
+
+    describe.each(commandTable)('Build Command "%s".', (command) => {
+        test('Using build method.', async () => {
+            const stats = await PkgBuilder.build(command, {
+                commandDir,
+                outputPath: path.join(outputPath, 'build-method', command),
+                tsLoader: {options: {compilerOptions: {rootDir: './'}}},
             })
-
-            const stats = await builder.run()
             console.log(stats)
+        }, 100000)
+
+        test('Using PkgBuilder as a task', async () => {
+            await task.run(await PkgBuilder.get(command, {
+                commandDir,
+                outputPath: path.join(outputPath, 'task', command),
+                tsLoader: {options: {compilerOptions: {rootDir: './'}}},
+            })).on('progressUpdate', (current, total, message) => {
+                process.stdout.write(`[${current}/${total}] ${message}\n`)
+            })
+        }, 100000)
+
+        test('Using PkgBuilder build task', async () => {
+            const t = PkgBuilder.buildTask({ commandDir })
+            await task.run(t, command, {
+                outputPath: path.join(outputPath, 'build-task', command),
+                tsLoader: {options: {compilerOptions: {rootDir: './'}}},
+            }).on('progressUpdate', (current, total, message) => {
+                process.stdout.write(`[${current}/${total}] ${message}\n`)
+            })
         }, 100000)
     })
 
